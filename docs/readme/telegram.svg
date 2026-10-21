@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="340" height="92" viewBox="0 0 340 92" role="img" aria-label="Telegram-канал svllvsxprod">
+  <defs>
+    <linearGradient id="telegram" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22c1f1"/>
+      <stop offset="1" stop-color="#168acd"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="336" height="88" rx="24" fill="url(#telegram)"/>
+  <circle cx="48" cy="46" r="25" fill="#ffffff" fill-opacity="0.18"/>
+  <path d="M31 45l34-13-6 30-11-8-6 6 1-10-12-5zm13 3l3 3 9-10-12 7z" fill="#ffffff"/>
+  <text x="88" y="38" fill="#e0f2fe" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="14" font-weight="700">Новости разработки</text>
+  <text x="88" y="63" fill="#ffffff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="21" font-weight="800">@svllvsxprod</text>
+</svg>

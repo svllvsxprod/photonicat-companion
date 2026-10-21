@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="340" height="92" viewBox="0 0 340 92" role="img" aria-label="Поддержать разработку через NOWPayments">
+  <defs>
+    <linearGradient id="payments" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7c3aed"/>
+      <stop offset="1" stop-color="#14b8a6"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="336" height="88" rx="24" fill="url(#payments)"/>
+  <circle cx="48" cy="46" r="25" fill="#ffffff" fill-opacity="0.18"/>
+  <path d="M34 39h28v17H34zM38 35h20v4H38zm2 9h16v3H40zm0 6h10v3H40z" fill="#ffffff"/>
+  <text x="88" y="38" fill="#f5f3ff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="14" font-weight="700">Поддержать разработку</text>
+  <text x="88" y="63" fill="#ffffff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="20" font-weight="800">NOWPayments</text>
+</svg>

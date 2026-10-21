@@ -1,0 +1,7 @@
+#!/bin/sh
+# Both WAN roles share eth0. Read UCI so a later manual speed change is honored.
+case "$ACTION:$INTERFACE" in
+    ifup:wan|ifup:wan6|ifup:pcwan|ifupdate:wan|ifupdate:wan6|ifupdate:pcwan)
+        /opt/photonicat-vpn/wan-link.sh
+        ;;
+esac

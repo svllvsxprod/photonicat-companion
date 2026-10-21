@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="340" height="92" viewBox="0 0 340 92" role="img" aria-label="Поддержать разработку через Tribute">
+  <defs>
+    <linearGradient id="tribute" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="336" height="88" rx="24" fill="url(#tribute)"/>
+  <circle cx="48" cy="46" r="25" fill="#ffffff" fill-opacity="0.18"/>
+  <path d="M34 46l26-12-6 27-8-7-6 6 1-10-7-4z" fill="#ffffff"/>
+  <text x="88" y="38" fill="#eff6ff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="14" font-weight="700">Поддержать разработку</text>
+  <text x="88" y="63" fill="#ffffff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="21" font-weight="800">Tribute</text>
+</svg>

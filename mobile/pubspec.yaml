@@ -1,0 +1,38 @@
+name: photonicat
+description: Personal Photonicat companion for Android and iOS.
+publish_to: none
+version: 0.5.0+5
+environment:
+  sdk: ^3.12.2
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_reactive_ble: 5.4.0
+  reactive_ble_mobile: 5.4.0
+  reactive_ble_platform_interface: 5.4.0
+  flutter_secure_storage: ^10.0.0
+  permission_handler: ^12.0.1
+  path_provider: ^2.1.5
+  pointycastle: ^4.0.0
+  crypto: ^3.0.6
+  flutter_svg: ^2.2.0
+  file_picker: ^13.1.0
+  mobile_scanner: ^7.4.2
+dependency_overrides:
+  reactive_ble_mobile:
+    path: vendor/reactive_ble_mobile
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icons/
+    - assets/licenses/
+  fonts:
+    - family: Orbitron
+      fonts:
+        - asset: assets/fonts/Orbitron-Regular.ttf
+        - asset: assets/fonts/Orbitron-Bold.ttf
+          weight: 700

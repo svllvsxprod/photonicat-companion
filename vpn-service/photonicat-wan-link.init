@@ -1,0 +1,9 @@
+#!/bin/sh /etc/rc.common
+# netifd may try applying speed before the PHY is attached; retry late at boot.
+START=99
+start() {
+    /opt/photonicat-vpn/wan-link.sh
+}
+reload() {
+    start
+}
