@@ -377,50 +377,79 @@ class Engine:
             await asyncio.sleep(3)
 
 
+def close_ble_bus(bus):
+    # Detach interfaces as well as the socket before a failed attempt is retried.
+    for path in (ROOT + "/service0/char0", ROOT + "/service0/char1",
+                 ROOT + "/service0", ROOT + "/advertisement0", ROOT):
+        bus.unexport(path)
+    bus.disconnect()
+
+
 async def setup_ble(key, engine, svc, rx, tx):
-    bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
-    service_path = ROOT + "/service0"
-    objects = {service_path: {"org.bluez.GattService1": {
-        "UUID": Variant("s", SERVICE), "Primary": Variant("b", True)}}}
-    bus.export(service_path, svc)
-    for index, char in enumerate([rx, tx]):
-        path = service_path + f"/char{index}"
-        bus.export(path, char)
-        objects[path] = {"org.bluez.GattCharacteristic1": {
-            "UUID": Variant("s", char.uuid), "Service": Variant("o", service_path),
-            "Flags": Variant("as", char.flags), "Notifying": Variant("b", False),
-            "Value": Variant("ay", b"")}}
-    bus.export(ROOT, Manager(objects))
-    ad_path = ROOT + "/advertisement0"
-    identity = hmac.new(key, b"photonicat/device-id/v1", hashlib.sha256).hexdigest()[:8]
-    bus.export(ad_path, Advertisement(identity))
-    root_intro = await bus.introspect("org.bluez", "/")
-    bluez = bus.get_proxy_object("org.bluez", "/", root_intro)
-    objects = await bluez.get_interface("org.freedesktop.DBus.ObjectManager").call_get_managed_objects()
-    preference_file = Path("/etc/photonicat-companion/adapter")
-    preferred = read(str(preference_file)).upper()
-    adapters = [(path, props["org.bluez.Adapter1"]) for path, props in objects.items()
-                if "org.bluez.Adapter1" in props and "org.bluez.LEAdvertisingManager1" in props
-                and "org.bluez.GattManager1" in props]
-    selected = next(((path, props) for path, props in adapters
-                     if props["Address"].value.upper() == preferred), None)
-    if not preferred:
-        powered = [(path, props) for path, props in adapters
-                   if props.get("Powered", Variant("b", False)).value]
-        if len(powered) > 1:
-            raise RuntimeError("Multiple BLE adapters: select an address in /etc/photonicat-companion/adapter")
-        selected = powered[0] if powered else None
-        if selected:
-            preference_file.write_text(selected[1]["Address"].value + "\n")
-    if selected is None:
-        raise RuntimeError("Configured BLE adapter unavailable; refusing to silently switch identity")
-    adapter_path = selected[0]
-    introspection = await bus.introspect("org.bluez", adapter_path)
-    adapter = bus.get_proxy_object("org.bluez", adapter_path, introspection)
-    await adapter.get_interface("org.bluez.GattManager1").call_register_application(ROOT, {})
-    await adapter.get_interface("org.bluez.LEAdvertisingManager1").call_register_advertisement(ad_path, {})
-    LOG.info("BLE companion ready; authenticated telemetry and controls")
-    return bus
+    bus = MessageBus(bus_type=BusType.SYSTEM)
+    try:
+        await bus.connect()
+        service_path = ROOT + "/service0"
+        objects = {service_path: {"org.bluez.GattService1": {
+            "UUID": Variant("s", SERVICE), "Primary": Variant("b", True)}}}
+        bus.export(service_path, svc)
+        for index, char in enumerate([rx, tx]):
+            path = service_path + f"/char{index}"
+            bus.export(path, char)
+            objects[path] = {"org.bluez.GattCharacteristic1": {
+                "UUID": Variant("s", char.uuid), "Service": Variant("o", service_path),
+                "Flags": Variant("as", char.flags), "Notifying": Variant("b", False),
+                "Value": Variant("ay", b"")}}
+        bus.export(ROOT, Manager(objects))
+        ad_path = ROOT + "/advertisement0"
+        identity = hmac.new(key, b"photonicat/device-id/v1", hashlib.sha256).hexdigest()[:8]
+        bus.export(ad_path, Advertisement(identity))
+        root_intro = await bus.introspect("org.bluez", "/")
+        bluez = bus.get_proxy_object("org.bluez", "/", root_intro)
+        objects = await bluez.get_interface("org.freedesktop.DBus.ObjectManager").call_get_managed_objects()
+        preference_file = Path("/etc/photonicat-companion/adapter")
+        preferred = read(str(preference_file)).upper()
+        adapters = [(path, props["org.bluez.Adapter1"]) for path, props in objects.items()
+                    if "org.bluez.Adapter1" in props and "org.bluez.LEAdvertisingManager1" in props
+                    and "org.bluez.GattManager1" in props]
+        selected = next(((path, props) for path, props in adapters
+                         if props["Address"].value.upper() == preferred), None)
+        if not preferred:
+            powered = [(path, props) for path, props in adapters
+                       if props.get("Powered", Variant("b", False)).value]
+            if len(powered) > 1:
+                raise RuntimeError("Multiple BLE adapters: select an address in /etc/photonicat-companion/adapter")
+            selected = powered[0] if powered else None
+            if selected:
+                preference_file.write_text(selected[1]["Address"].value + "\n")
+        if selected is None:
+            raise RuntimeError("Configured BLE adapter unavailable; refusing to silently switch identity")
+        adapter_path = selected[0]
+        introspection = await bus.introspect("org.bluez", adapter_path)
+        adapter = bus.get_proxy_object("org.bluez", adapter_path, introspection)
+        await adapter.get_interface("org.bluez.GattManager1").call_register_application(ROOT, {})
+        await adapter.get_interface("org.bluez.LEAdvertisingManager1").call_register_advertisement(ad_path, {})
+        LOG.info("BLE companion ready; authenticated telemetry and controls")
+        return bus
+    except BaseException:
+        close_ble_bus(bus)
+        raise
+
+
+async def start_ble_when_ready(key, engine, svc, rx, tx, retry_delay=5):
+    attempt = 0
+    while True:
+        try:
+            engine.bus = await asyncio.wait_for(
+                setup_ble(key, engine, svc, rx, tx), timeout=20)
+            return
+        except Exception as exc:
+            attempt += 1
+            # A late USB adapter must not permanently disable BLE for this boot.
+            # Keep LAN and telemetry running, retaining the selected adapter/key.
+            if attempt == 1 or attempt % 12 == 0:
+                LOG.warning("BLE not ready (%s); retrying while LAN stays active", exc)
+            await asyncio.sleep(retry_delay)
 
 
 async def main():
@@ -434,11 +463,14 @@ async def main():
         await lan.start()
     except OSError:
         LOG.exception("LAN transport unavailable; BLE remains active")
+    ble_start = asyncio.create_task(start_ble_when_ready(key, engine, svc, rx, tx))
     try:
-        engine.bus = await setup_ble(key, engine, svc, rx, tx)
-    except Exception:
-        LOG.exception("BLE unavailable; LAN remains active")
-    await engine.sample()
+        await engine.sample()
+    finally:
+        ble_start.cancel()
+        await asyncio.gather(ble_start, return_exceptions=True)
+        if getattr(engine, "bus", None) is not None:
+            close_ble_bus(engine.bus)
 
 
 if __name__ == "__main__":

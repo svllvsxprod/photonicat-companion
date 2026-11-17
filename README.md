@@ -116,13 +116,23 @@ Separating Wi-Fi and LAN into different networks can briefly interrupt the conne
 | Modem is detected but has no internet | SIM, APN and operator registration in the router's own interface. |
 | VPN has no internet | Selected server, subscription expiry and profile format. The kill switch deliberately blocks access when the tunnel fails. |
 
+**If Bluetooth disappears after a reboot but desktop control still works:** the service shipped in 0.7.5-beta.1 could start before the Bluetooth adapter and never retry. Source and the setup payload on `main` now retry while keeping LAN control available. Previously published DMG and EXE files still bundle the old service; updating the APK alone does not replace it.
+
+For temporary recovery, open Terminal in your router's web interface and run:
+
+```sh
+/etc/init.d/photonicat-companion restart
+```
+
+This restarts Companion control only, not the modem, Wi-Fi or VPN cores. It is a temporary workaround for the old service; the fix on `main` addresses startup recovery. An authenticated Samsung Bluetooth connection was verified after applying the fix; another reboot of the live router was not tested.
+
 When reporting a problem, include the app version, operating system, connection type and error text. Remove keys, passwords, subscription links and VPN configurations.
 
 ## Project status
 
 This is an independent app, not an official Photonicat product. No owner's keys, subscriptions or live-router settings are included. GearUP has been removed from the app.
 
-Version 0.7.5 passed 39 Flutter tests, code analysis and build checks. A real router connection recovered after simulated adapter loss. Windows installation, launch and uninstall were checked; the APK was built and its signature verified. A factory-fresh router setup, physical Wi-Fi/cable switching and running the new APK on a phone were not verified for this release. The custom control protocol has not received an independent audit.
+Version 0.7.5 passed 39 Flutter tests, code analysis and build checks. A real router connection recovered after simulated adapter loss. Windows installation, launch and uninstall were checked; the APK was built, its signature verified, and an upgrade from 0.6.1 with working Bluetooth was confirmed on Samsung. A factory-fresh router setup and physical Wi-Fi/cable switching were not verified for this release. The custom control protocol has not received an independent audit.
 
 <details>
 <summary>For developers: builds and tests</summary>
