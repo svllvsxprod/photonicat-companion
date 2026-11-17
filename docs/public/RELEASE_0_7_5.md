@@ -7,8 +7,8 @@
 - **Android 12+:** `Photonicat-0.7.5-Android.apk`.
 - **Mac, Apple Silicon, macOS 12+:** `Photonicat-0.7.5-beta.1-macOS-AppleSilicon.dmg`.
 - **Windows x64:** `Photonicat-0.7.5-Windows-x64-Setup.exe`; portable-вариант — `Photonicat-0.7.5-Windows-x64.zip`.
-- [Установка и повседневное использование](https://github.com/svllvsxprod/photonicat-companion/blob/main/docs/public/USAGE_RU.md).
-- [Первичная настройка роутера со скриншотами](https://github.com/svllvsxprod/photonicat-companion/blob/main/docs/public/SETUP_RU.md).
+- [Установка и повседневное использование](https://github.com/svllvsxprod/photonicat-companion/blob/main/README.ru.md).
+- [Первичная настройка роутера со скриншотами](https://github.com/svllvsxprod/photonicat-companion/blob/main/README.ru.md#первая-настройка-роутера).
 
 Скачивайте файлы из [этого выпуска](https://github.com/svllvsxprod/photonicat-companion/releases/tag/v0.7.5-beta.1). Контрольные суммы находятся в `SHA256SUMS`. `Photonicat-0.7.5-Source.zip` содержит опубликованные исходники всех платформ, `Desktop-Source.zip` — снимок исходников настольных сборок. Отдельно приложены исходники Mihomo/AmneziaWG, используемых в пакете настройки, и лицензии.
 
