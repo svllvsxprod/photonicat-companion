@@ -18,7 +18,7 @@ void main() {
     );
     final toggle = find.byKey(const ValueKey('wifi-vpn-pcie7'));
     await tester.ensureVisible(toggle);
-    await tester.tap(toggle);
+    await tester.tap(find.descendant(of: toggle, matching: find.text('VPN')));
     await tester.pumpAndSettle();
     expect(router.sent.map((r) => r['op']), ['settings', 'wifi_set']);
     expect(router.sent.last['args'], {
@@ -26,7 +26,7 @@ void main() {
       'id': 'pcie7',
       'ssid': 'Changed elsewhere',
       'enabled': true,
-      'vpn_enabled': true,
+      'internet_mode': 'vpn',
     });
   });
 }

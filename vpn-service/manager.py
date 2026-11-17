@@ -27,6 +27,8 @@ ENGINES = {
 }
 RUNTIME = Path('/var/run/photonicat-vpn-awg.json')
 SOCKET_MARK = 23499
+AUTO_GROUP = 'PC-Auto'
+AUTO_URL = 'https://www.gstatic.com/generate_204'
 
 
 def manifest():
@@ -205,6 +207,9 @@ def awg_run():
     signal.signal(signal.SIGINT, stop)
     while not stopped:
         identifier = state()['amneziawg']
+        if not identifier:
+            time.sleep(.5)
+            continue
         p = profile(identifier)
         interface = ENGINES['amneziawg']['interface']
         RUNTIME.unlink(missing_ok=True)
@@ -302,12 +307,19 @@ def select_awg(identifier):
 
 
 def select_node(name):
-    group = api('/proxies/PC-Mihomo')
-    if name in ('DIRECT', 'COMPATIBLE', 'REJECT') or name not in group['all']:
-        raise ValueError('Unknown subscription node')
     with (ROOT / 'control.lock').open('w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         old = state()
+        group = api('/proxies/PC-Mihomo')
+        if name == AUTO_GROUP and name not in group['all']:
+            # Only an explicit user selection may reload the working core.
+            import catalog
+            config = catalog.configuration()
+            catalog.configure_auto(config)
+            catalog.reload_config(config)
+            group = api('/proxies/PC-Mihomo')
+        if name in ('DIRECT', 'COMPATIBLE', 'REJECT') or name not in group['all']:
+            raise ValueError('Unknown subscription node')
         previous = group.get('now')
         api('/proxies/PC-Mihomo', 'PUT', {'name': name})
         try:
@@ -324,6 +336,8 @@ def reconcile():
     with (ROOT / 'control.lock').open('w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         prepare_routes_locked()
+        import uplink
+        uplink.sync()
         s = state()
         for group, selected in [('PC-Active', ENGINES[s['active']]['group']), ('PC-Mihomo', s.get('mihomo'))]:
             current = api('/proxies/' + group, timeout=.5)
@@ -350,10 +364,22 @@ def status():
         result['mihomo']['version'] = api('/version', timeout=1)['version']
         group = api('/proxies/PC-Mihomo', timeout=1)
         result['mihomo']['applied'] = group.get('now')
-        result['mihomo']['nodes'] = [n for n in group.get('all', []) if n not in ('DIRECT','COMPATIBLE','REJECT')]
+        result['mihomo']['nodes'] = [n for n in group.get('all', []) if n not in ('DIRECT','COMPATIBLE','REJECT', AUTO_GROUP)]
+        result['mihomo']['auto'] = {'name': AUTO_GROUP, 'ready': AUTO_GROUP in group.get('all', [])}
         result['active_proxy'] = api('/proxies/PC-Active', timeout=1).get('now')
     except Exception:
         result['mihomo']['running'] = False
+    if result['mihomo'].get('auto', {}).get('ready'):
+        try:
+            current = api('/proxies/' + AUTO_GROUP, timeout=1).get('now')
+            providers = api('/providers/proxies', timeout=1).get('providers', {})
+            detail = next((p for provider in providers.values() for p in provider.get('proxies', []) if p.get('name') == current), {})
+            health = detail.get('extra', {}).get(AUTO_URL, {})
+            history = health.get('history', [])
+            result['mihomo']['auto'].update(node=current, alive=health.get('alive'),
+                delay_ms=history[-1].get('delay') if history else None)
+        except (OSError, ValueError, TypeError):
+            pass  # An unavailable health sample does not mean the core stopped.
     return result
 
 
@@ -361,7 +387,10 @@ def check_exit(engine):
     e = ENGINES[engine]
     selected = state()['amneziawg' if engine == 'amneziawg' else 'mihomo']
     started = time.monotonic()
+    node = None
     try:
+        if selected == AUTO_GROUP:
+            node = api('/proxies/' + AUTO_GROUP, timeout=1).get('now')
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             sock.settimeout(8)
             sock.setsockopt(socket.SOL_SOCKET, 36, e['table'])
@@ -375,10 +404,12 @@ def check_exit(engine):
                     data += part
         fields = dict(line.split('=', 1) for line in data.decode().splitlines() if '=' in line)
         address = str(ipaddress.ip_address(fields['ip']))
-        return {'engine': engine, 'selected': selected, 'ok': True, 'ip': address,
+        if selected == AUTO_GROUP and node != api('/proxies/' + AUTO_GROUP, timeout=1).get('now'):
+            return {'engine': engine, 'selected': selected, 'node': node, 'ok': False, 'changed': True}
+        return {'engine': engine, 'selected': selected, 'node': node, 'ok': True, 'ip': address,
                 'elapsed_ms': round((time.monotonic()-started)*1000)}
     except (OSError, ValueError, KeyError):
-        return {'engine': engine, 'selected': selected, 'ok': False}
+        return {'engine': engine, 'selected': selected, 'node': node, 'ok': False}
 
 
 def cleanup():

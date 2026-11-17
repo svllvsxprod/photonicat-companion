@@ -20,10 +20,13 @@ class VpnPanel extends StatefulWidget {
 class _VpnPanelState extends State<VpnPanel> {
   RouterController get router => widget.router;
   bool loading = false;
+  bool refreshing = false;
   bool initialRequested = false;
   Timer? portRefresh;
   String? problem;
   DateTime? updated;
+  String? updatingSubscription;
+  final subscriptionResults = <String, String>{};
   final checks = <String, Map<String, dynamic>>{};
   bool get enabled => router.connected && !router.commandBusy && !loading;
   @override
@@ -66,19 +69,19 @@ class _VpnPanelState extends State<VpnPanel> {
       .replaceFirst('Bad state: ', '')
       .replaceFirst('StateError: ', '');
   Future<void> refresh() async {
-    if (!enabled) return;
+    if (!enabled || refreshing) return;
     setState(() {
-      loading = true;
+      refreshing = true;
       problem = null;
     });
     try {
-      await router.command('vpn_get');
-      await router.command('settings');
+      await router.readBackground('vpn_get');
+      await router.readBackground('settings');
       if (mounted) setState(() => updated = DateTime.now());
     } catch (e) {
       if (mounted) setState(() => problem = message(e));
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (mounted) setState(() => refreshing = false);
     }
   }
 
@@ -107,6 +110,12 @@ class _VpnPanelState extends State<VpnPanel> {
         }
       });
       if (reply['message'] is String) {
+        if (action == 'update-subscription') {
+          setState(
+            () => subscriptionResults[args['id'] as String] =
+                reply['message'] as String,
+          );
+        }
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(reply['message'])));
@@ -123,6 +132,23 @@ class _VpnPanelState extends State<VpnPanel> {
     } finally {
       if (mounted) setState(() => loading = false);
     }
+  }
+
+  Future<void> updateSubscription(String id) async {
+    if (!enabled || updatingSubscription != null) return;
+    setState(() {
+      updatingSubscription = id;
+      subscriptionResults.remove(id);
+    });
+    final ok = await change('update-subscription', {'id': id});
+    if (!mounted) return;
+    setState(() {
+      if (!ok) {
+        subscriptionResults[id] =
+            problem ?? 'Не удалось загрузить серверы. Повтори обновление.';
+      }
+      updatingSubscription = null;
+    });
   }
 
   Future<void> choose(String engine) async {
@@ -143,9 +169,34 @@ class _VpnPanelState extends State<VpnPanel> {
         entries: entries,
         selected: data['selected'],
         title: engine == 'amneziawg' ? 'Профиль Amnezia' : 'Сервер Mihomo',
+        auto: data['auto'] is Map
+            ? Map<String, dynamic>.from(data['auto'])
+            : null,
       ),
     );
     if (picked != null && mounted && picked != data['selected']) {
+      if (picked == data['auto']?['name'] && data['auto']?['ready'] != true) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Включить автовыбор?'),
+            content: const Text(
+              'При первом включении применятся новые настройки VPN. Текущие соединения могут переподключиться. Сервер и внешний IP будут выбраны автоматически.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Отмена'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Включить'),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true || !mounted) return;
+      }
       await change(engine == 'amneziawg' ? 'awg' : 'node', {
         'value': picked,
       }, revision: revision);
@@ -220,7 +271,7 @@ class _VpnPanelState extends State<VpnPanel> {
                 ),
                 if (awg)
                   const Text(
-                    'Профиль прочитан. Ключи будут переданы на роутер по защищённому Bluetooth-соединению.',
+                    'Профиль прочитан. Ключи будут переданы на роутер по защищённому соединению.',
                     style: TextStyle(color: muted, fontSize: 13),
                   )
                 else ...[
@@ -323,8 +374,8 @@ class _VpnPanelState extends State<VpnPanel> {
           children: [
             Expanded(child: Text('VPN', style: digits(30))),
             IconButton(
-              tooltip: 'Обновить VPN',
-              onPressed: enabled ? refresh : null,
+              tooltip: 'Обновить состояние роутера',
+              onPressed: enabled && !refreshing ? refresh : null,
               icon: const Icon(Icons.refresh, color: yellow),
             ),
           ],
@@ -337,7 +388,9 @@ class _VpnPanelState extends State<VpnPanel> {
         const SizedBox(height: 16),
         SizedBox(
           height: 2,
-          child: loading ? const LinearProgressIndicator(minHeight: 2) : null,
+          child: loading || refreshing
+              ? const LinearProgressIndicator(minHeight: 2)
+              : null,
         ),
         if (problem != null)
           Padding(
@@ -356,7 +409,7 @@ class _VpnPanelState extends State<VpnPanel> {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 30),
             child: Text(
-              loading
+              loading || refreshing
                   ? 'Получаем профили с роутера…'
                   : router.connected
                   ? 'Нажми обновление, чтобы получить профили.'
@@ -448,7 +501,7 @@ class _VpnPanelState extends State<VpnPanel> {
             tilePadding: EdgeInsets.zero,
             title: const Text('Профили и подписки'),
             subtitle: const Text(
-              'Обновить или удалить',
+              'Загрузить серверы из подписки или удалить',
               style: TextStyle(color: muted, fontSize: 12),
             ),
             children: [
@@ -485,20 +538,30 @@ class _VpnPanelState extends State<VpnPanel> {
                   contentPadding: EdgeInsets.zero,
                   title: Text(sub['label']),
                   subtitle: Text(
-                    '${sub['count']} серверов',
+                    updatingSubscription == sub['id']
+                        ? 'Загружаю серверы из подписки…'
+                        : subscriptionResults[sub['id']] ??
+                              '${sub['count']} серверов',
                     style: const TextStyle(color: muted, fontSize: 12),
                   ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
-                        tooltip: 'Обновить подписку',
+                        key: ValueKey('refresh-subscription-${sub['id']}'),
+                        tooltip: 'Загрузить серверы из подписки',
                         onPressed: enabled
-                            ? () => change('update-subscription', {
-                                'id': sub['id'],
-                              })
+                            ? () => updateSubscription(sub['id'] as String)
                             : null,
-                        icon: const Icon(Icons.sync),
+                        icon: updatingSubscription == sub['id']
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.sync),
                       ),
                       IconButton(
                         tooltip: 'Удалить подписку',
@@ -520,7 +583,7 @@ class _VpnPanelState extends State<VpnPanel> {
             Padding(
               padding: const EdgeInsets.only(top: 12),
               child: Text(
-                'Профили обновлены в ${updated!.hour.toString().padLeft(2, '0')}:${updated!.minute.toString().padLeft(2, '0')}',
+                'Состояние получено в ${updated!.hour.toString().padLeft(2, '0')}:${updated!.minute.toString().padLeft(2, '0')}',
                 style: const TextStyle(color: muted, fontSize: 11),
               ),
             ),
@@ -533,6 +596,12 @@ class _VpnPanelState extends State<VpnPanel> {
     final data = Map<String, dynamic>.from(vpn[engine]);
     final awg = engine == 'amneziawg';
     String selected = data['selected'] as String? ?? 'Не выбран';
+    final automatic =
+        !awg && data['auto'] is Map && selected == data['auto']['name'];
+    final auto = data['auto'] is Map
+        ? Map<String, dynamic>.from(data['auto'])
+        : <String, dynamic>{};
+    if (automatic) selected = 'Автовыбор';
     if (awg) {
       for (final p in data['profiles'] as List) {
         if (p['id'] == selected) {
@@ -542,7 +611,10 @@ class _VpnPanelState extends State<VpnPanel> {
       }
     }
     final check = checks[engine];
-    final validCheck = check != null && check['selected'] == data['selected'];
+    final validCheck =
+        check != null &&
+        check['selected'] == data['selected'] &&
+        (!automatic || check['node'] == auto['node']);
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: rule),
@@ -615,6 +687,22 @@ class _VpnPanelState extends State<VpnPanel> {
                               fontWeight: FontWeight.w600,
                             ),
                           ),
+                          if (automatic) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              auto['node'] == null
+                                  ? 'Ожидаем результат проверки'
+                                  : auto['node'] == 'REJECT' ||
+                                        auto['alive'] == false
+                                  ? 'Нет доступного сервера · доступ закрыт'
+                                  : 'Сейчас: ${auto['node']}${auto['delay_ms'] is num && auto['delay_ms'] > 0 ? ' · ${auto['delay_ms']} мс' : ''}',
+                              style: const TextStyle(
+                                color: muted,
+                                fontSize: 12,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -722,8 +810,6 @@ class _VpnPanelState extends State<VpnPanel> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         card('WAN', Icons.input, [
-          const Text('Direct', style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 6),
           Text(role, style: const TextStyle(color: muted, fontSize: 13)),
           if (p['wan_link'] == true && p['wan_address'] != null)
             Text(
@@ -782,6 +868,33 @@ class _VpnPanelState extends State<VpnPanel> {
                 : 'Авто ищет источник по DHCP и IPv6. Для сети со статическим адресом выбери «Приём».',
             style: const TextStyle(color: muted, fontSize: 11, height: 1.4),
           ),
+          const SizedBox(height: 16),
+          const Divider(color: rule, height: 1),
+          const SizedBox(height: 12),
+          const Text(
+            'Интернет при раздаче',
+            style: TextStyle(color: muted, fontSize: 12),
+          ),
+          const SizedBox(height: 8),
+          InternetModeSwitch(
+            switchKey: const ValueKey('wan-internet-mode'),
+            mode: p['wan_share_mode'] as String? ?? 'direct',
+            onChanged: enabled && p['wan_role'] == 'share'
+                ? (value) => change('ports', {
+                    'setting': 'wan_share_mode',
+                    'value': value,
+                  })
+                : null,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            p['wan_role'] != 'share'
+                ? 'Доступно, когда WAN раздаёт интернет. При приёме режимы LAN и Wi-Fi работают независимо.'
+                : p['wan_share_mode'] == 'vpn'
+                ? 'DNS и IPv6 — через VPN. При потере туннеля интернет блокируется.'
+                : 'Direct — интернет через доступный внешний источник.',
+            style: const TextStyle(color: muted, fontSize: 11, height: 1.4),
+          ),
         ]),
         const SizedBox(height: 20),
         card('LAN', Icons.settings_ethernet, [
@@ -792,12 +905,10 @@ class _VpnPanelState extends State<VpnPanel> {
           const SizedBox(height: 8),
           InternetModeSwitch(
             switchKey: const ValueKey('lan-internet-mode'),
-            vpn: p['lan_mode'] != 'direct',
+            mode: p['lan_mode'] as String? ?? 'vpn',
             onChanged: enabled
-                ? (value) => change('ports', {
-                    'setting': 'lan_mode',
-                    'value': value ? 'vpn' : 'direct',
-                  })
+                ? (value) =>
+                      change('ports', {'setting': 'lan_mode', 'value': value})
                 : null,
           ),
           Text(lan, style: const TextStyle(color: muted, fontSize: 12)),
@@ -840,10 +951,12 @@ class _ProfilePicker extends StatefulWidget {
     required this.entries,
     required this.selected,
     required this.title,
+    this.auto,
   });
   final List<MapEntry<String, String>> entries;
   final String? selected;
   final String title;
+  final Map<String, dynamic>? auto;
   @override
   State<_ProfilePicker> createState() => _ProfilePickerState();
 }
@@ -880,6 +993,27 @@ class _ProfilePickerState extends State<_ProfilePicker> {
             Expanded(
               child: ListView(
                 children: [
+                  if (widget.auto != null) ...[
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(
+                        Icons.auto_awesome_outlined,
+                        color: yellow,
+                      ),
+                      title: const Text('Автовыбор'),
+                      subtitle: const Text(
+                        'Все подписки · лучший отклик\nПроверка каждые 5 минут. При смене сервера меняется IP; доступ к отдельным сайтам не гарантируется.',
+                      ),
+                      trailing: widget.selected == widget.auto!['name']
+                          ? const Icon(Icons.check, color: yellow)
+                          : null,
+                      onTap: () => Navigator.pop(
+                        context,
+                        widget.auto!['name'] as String,
+                      ),
+                    ),
+                    const Divider(),
+                  ],
                   for (final entry in widget.entries.where(
                     (e) => e.value.toLowerCase().contains(query),
                   ))

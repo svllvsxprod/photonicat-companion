@@ -1,0 +1,75 @@
+name: Windows installer
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Install pinned Flutter SDK
+        shell: pwsh
+        run: |
+          git clone --depth 1 --branch 3.44.2 https://github.com/flutter/flutter.git "$env:RUNNER_TEMP\flutter"
+          if ($LASTEXITCODE -ne 0) { throw 'Flutter clone failed' }
+          "$env:RUNNER_TEMP\flutter\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Locate installer compiler
+        shell: pwsh
+        run: |
+          $compiler = Get-ChildItem 'C:\Program Files (x86)\Inno Setup*\ISCC.exe', 'C:\Program Files\Inno Setup*\ISCC.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $compiler) {
+            choco install innosetup -y --no-progress
+            if ($LASTEXITCODE -ne 0) { throw 'Inno Setup install failed' }
+            $compiler = Get-ChildItem 'C:\Program Files (x86)\Inno Setup*\ISCC.exe', 'C:\Program Files\Inno Setup*\ISCC.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+          }
+          if (-not $compiler) { throw 'Inno compiler not found' }
+          $compiler.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Verify and build
+        shell: pwsh
+        run: |
+          Push-Location mobile
+          flutter pub get
+          if ($LASTEXITCODE -ne 0) { throw 'Dependencies failed' }
+          flutter analyze --no-pub
+          if ($LASTEXITCODE -ne 0) { throw 'Analysis failed' }
+          flutter test --no-pub
+          if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
+          Pop-Location
+          & ./tools/build-windows.ps1
+      - name: Verify silent installation and startup
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem 'releases/private/0.7.5-beta.1/*-Setup.exe' | Select-Object -First 1
+          if (-not $setup) { throw 'Setup artifact missing' }
+          $target = Join-Path $env:RUNNER_TEMP 'Photonicat-Smoke'
+          $installation = Start-Process $setup.FullName -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/TASKS=autostart',"/DIR=$target" -Wait -PassThru
+          if ($installation.ExitCode -ne 0) { throw "Installer failed: $($installation.ExitCode)" }
+          if (-not (Test-Path "$target/photonicat.exe")) { throw 'Installed app missing' }
+          $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+          $entry = (Get-ItemProperty $runKey -Name Photonicat).Photonicat
+          if ($entry -ne "`"$target\photonicat.exe`" --autostart") { throw 'Startup entry is missing or incorrect' }
+          $app = Start-Process "$target/photonicat.exe" -ArgumentList '--autostart' -PassThru
+          Start-Sleep -Seconds 12
+          if ($app.HasExited) { throw "App exited during smoke test: $($app.ExitCode)" }
+          $app.Refresh()
+          if ($app.MainWindowHandle -ne 0) { throw 'Autostart opened a visible window' }
+          Stop-Process -Id $app.Id
+          $uninstall = Start-Process "$target/unins000.exe" -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) { throw 'Uninstaller failed' }
+          if ((Get-ItemProperty $runKey -Name Photonicat -ErrorAction SilentlyContinue).Photonicat) { throw 'Startup entry survived uninstall' }
+          $installation = Start-Process $setup.FullName -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/TASKS=!autostart',"/DIR=$target" -Wait -PassThru
+          if ($installation.ExitCode -ne 0) { throw 'Second installation failed' }
+          if ((Get-ItemProperty $runKey -Name Photonicat -ErrorAction SilentlyContinue).Photonicat) { throw 'Unchecked startup enabled itself' }
+          # Simulate enabling later from the app; uninstall must clean it too.
+          Set-ItemProperty $runKey -Name Photonicat -Value "`"$target\photonicat.exe`" --autostart"
+          $uninstall = Start-Process "$target/unins000.exe" -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0 -or (Get-ItemProperty $runKey -Name Photonicat -ErrorAction SilentlyContinue).Photonicat) { throw 'App-created startup entry not cleaned' }
+          @{install='passed';startup='registered and launched hidden';uninstall='passed';unchecked_startup='disabled';app_created_entry_cleanup='passed';router_access='not tested'} | ConvertTo-Json | Set-Content 'releases/private/0.7.5-beta.1/windows-verification.json'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Photonicat-Windows-x64
+          path: releases/private/0.7.5-beta.1/*
+          if-no-files-found: error
+          retention-days: 3

@@ -7,6 +7,15 @@ import ports
 
 
 class PortsTests(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        role = patch.object(ports, 'WAN_GUARD_ROLE', Path(self.temp.name)/'role')
+        role.start()
+        self.addCleanup(role.stop)
+
     def test_sharing_removes_only_ethernet_receivers_from_external_zone(self):
         values = {'values': {'cfgwan': {'.type': 'zone', 'name': 'wan',
                              'network': ['wan', 'wan6', 'wwan_fm350', 'wan_wifi']}}}

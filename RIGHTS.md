@@ -12,6 +12,8 @@ Included third-party software retains its original terms:
 | pyaes, © Richard Moore | [MIT](router/vendor/pyaes-LICENSE.txt) |
 | dbus-next, © Tony Crisci | `router/vendor/dbus_next-0.2.3.dist-info/LICENSE` (MIT) |
 | Orbitron, The Orbitron Project Authors | [SIL Open Font License 1.1](mobile/assets/licenses/Orbitron-OFL.txt) |
+| Mihomo v1.19.32 | [GPL-3.0](mobile/assets/setup/MIHOMO-LICENSE.txt), matching source archive in the release |
+| AmneziaWG Go b5928ef | [MIT](mobile/assets/setup/AMNEZIA-LICENSE.txt), matching source archive in the release |
 | Other Flutter/Python dependencies | Respective upstream licenses; package lockfiles identify dependencies |
 
 Product names, device artwork and third-party icons remain the property of their respective owners. No endorsement by the device manufacturer is implied. The README screenshots use neutral demo branding and fictional values.

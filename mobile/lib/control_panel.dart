@@ -606,7 +606,7 @@ class _ControlEditorState extends State<ControlEditor> {
                   ),
                   const SizedBox(height: 18),
                   const Text(
-                    'После сохранения устройства Wi-Fi могут отключиться. Связь приложения с роутером идёт по Bluetooth.',
+                    'После сохранения устройства Wi-Fi могут отключиться. При управлении по Wi‑Fi понадобится переподключиться.',
                     style: TextStyle(color: muted, fontSize: 12),
                   ),
                 ] else ...[

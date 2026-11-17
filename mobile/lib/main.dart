@@ -7,6 +7,10 @@ import 'control_panel.dart';
 import 'vpn_panel.dart';
 import 'sms_page.dart';
 import 'app_style.dart';
+import 'setup_wizard.dart';
+import 'setup_connection.dart';
+import 'startup_settings.dart';
+import 'lan_connection.dart' show isDesktop;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,6 +31,9 @@ class PhotonicatApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
     title: 'Photonicat',
     debugShowCheckedModeBanner: false,
+    scrollBehavior: const MaterialScrollBehavior().copyWith(
+      scrollbars: !isDesktop,
+    ),
     theme: ThemeData(
       brightness: Brightness.dark,
       scaffoldBackgroundColor: Colors.black,
@@ -71,7 +78,9 @@ class PhotonicatApp extends StatelessWidget {
         bodySmall: TextStyle(color: muted, fontSize: 12, height: 1.5),
       ),
     ),
-    home: const RouterScreen(),
+    home: const bool.fromEnvironment('PCAT_SETUP_DEMO')
+        ? const SetupWizard(demo: true)
+        : const RouterScreen(),
   );
 }
 
@@ -85,6 +94,7 @@ class _RouterScreenState extends State<RouterScreen>
     with WidgetsBindingObserver {
   final router = RouterController();
   final code = TextEditingController();
+  final address = TextEditingController();
   int tab = 0;
   bool invalid = false;
   Timer? clock;
@@ -117,6 +127,7 @@ class _RouterScreenState extends State<RouterScreen>
     router.removeListener(changed);
     router.dispose();
     code.dispose();
+    address.dispose();
     super.dispose();
   }
 
@@ -192,6 +203,8 @@ class _RouterScreenState extends State<RouterScreen>
                       ],
                     ),
                     const SizedBox(height: 27),
+                    if (router.usesLan && (!router.bound || tab == 3))
+                      const StartupSettings(),
                     if (!router.bound)
                       pairing()
                     else ...[
@@ -267,6 +280,12 @@ class _RouterScreenState extends State<RouterScreen>
                               style: TextStyle(color: muted),
                             ),
                           ),
+                        ),
+                      if (tab == 3 && router.usesLan)
+                        TextButton.icon(
+                          onPressed: router.commandBusy ? null : setupRouter,
+                          icon: const Icon(Icons.add_circle_outline),
+                          label: const Text('Настроить другой роутер'),
                         ),
                       const SizedBox(height: 12),
                       if (tab != 2 && tab != 4)
@@ -344,9 +363,34 @@ class _RouterScreenState extends State<RouterScreen>
     );
   }
 
+  Future<void> setupRouter() async {
+    final result = await Navigator.of(context).push<SetupResult>(
+      MaterialPageRoute(
+        builder: (_) => SetupWizard(
+          onConnected: (result) async {
+            await router.disconnect();
+            await router.setLanAddress(result.address);
+            if (!await router.bind(result.key)) {
+              throw const SetupFailure(
+                'Не удалось сохранить ключ в защищённом хранилище. Повтори подключение.',
+              );
+            }
+            await router.connect();
+          },
+        ),
+      ),
+    );
+    if (result != null && mounted) setState(() => tab = 2);
+  }
+
   Widget pairing() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
+      if (router.error != null)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Text(router.error!, style: const TextStyle(color: yellow)),
+        ),
       const Text(
         'ТВОЙ РОУТЕР.\nВСЕГДА РЯДОМ.',
         style: TextStyle(
@@ -357,11 +401,38 @@ class _RouterScreenState extends State<RouterScreen>
         ),
       ),
       const SizedBox(height: 24),
-      const Text(
-        'Привяжи Photonicat один раз. Дальше приложение будет находить его по Bluetooth.',
-        style: TextStyle(color: muted, fontSize: 16),
+      Text(
+        router.usesLan
+            ? 'Подключись к Wi‑Fi или Ethernet своего Photonicat. После привязки приложение управляет им через локальную сеть.'
+            : 'Привяжи Photonicat один раз. Дальше приложение будет находить его по Bluetooth.',
+        style: const TextStyle(color: muted, fontSize: 16),
       ),
       const SizedBox(height: 24),
+      if (router.usesLan) ...[
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: setupRouter,
+            icon: const Icon(Icons.auto_fix_high),
+            label: const Text('Настроить роутер'),
+          ),
+        ),
+        const SizedBox(height: 24),
+        const Text(
+          'Уже есть ключ? Привяжи устройство ниже.',
+          style: TextStyle(color: muted),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: address,
+          decoration: const InputDecoration(
+            labelText: 'Адрес роутера (необязательно)',
+            hintText: 'Автоматически',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 16),
+      ],
       TextField(
         controller: code,
         obscureText: true,
@@ -381,6 +452,21 @@ class _RouterScreenState extends State<RouterScreen>
         width: double.infinity,
         child: FilledButton(
           onPressed: () async {
+            if (router.usesLan) {
+              try {
+                await router.setLanAddress(address.text);
+              } catch (_) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Укажи IPv4-адрес роутера или оставь поле пустым.',
+                    ),
+                  ),
+                );
+                return;
+              }
+            }
             final ok = await router.bind(code.text);
             if (!mounted) return;
             setState(() => invalid = !ok);

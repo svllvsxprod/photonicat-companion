@@ -167,7 +167,7 @@ class _SmsPageState extends State<SmsPage> {
             const Padding(
               padding: EdgeInsets.only(bottom: 20),
               child: Text(
-                'Подключись к роутеру по Bluetooth, чтобы загрузить СМС.',
+                'Подключись к роутеру, чтобы загрузить СМС.',
                 style: TextStyle(color: muted),
               ),
             ),

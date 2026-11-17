@@ -97,8 +97,17 @@ def download(url):
     import yaml
     try:
         request = urllib.request.Request(public_url(url), headers={'User-Agent': 'mihomo'})
-        with urllib.request.build_opener(Redirect).open(request, timeout=10) as response:
-            raw = response.read(1048577)
+        # Subscription hosts may be unreachable through the cellular operator.
+        # Use the existing Mihomo tunnel; direct access remains a bootstrap fallback.
+        for proxies in ({'https': 'http://127.0.0.1:17882'}, {}):
+            try:
+                opener = urllib.request.build_opener(urllib.request.ProxyHandler(proxies), Redirect)
+                with opener.open(request, timeout=8) as response:
+                    raw = response.read(1048577)
+                break
+            except OSError:
+                if not proxies:
+                    raise
         if len(raw) > 1048576: raise ValueError()
         if any(isinstance(token, yaml.tokens.AliasToken) for token in yaml.scan(raw)):
             raise ValueError()
@@ -126,6 +135,22 @@ def configuration():
     return json.loads((m.ROOT / 'mihomo/config.json').read_text())
 
 
+def configure_auto(config):
+    """Opt-in native single-server selection; never insert a direct fallback."""
+    groups = config['proxy-groups']
+    parent = next(g for g in groups if g['name'] == 'PC-Mihomo')
+    auto = next((g for g in groups if g['name'] == m.AUTO_GROUP), None)
+    if auto is None:
+        auto = {'name': m.AUTO_GROUP}
+        groups.insert(0, auto)
+    auto.update({'type': 'url-test', 'use': list(config['proxy-providers']),
+                 'proxies': ['REJECT'], 'empty-fallback': 'REJECT',
+                 'url': m.AUTO_URL, 'expected-status': '204',
+                 'interval': 300, 'timeout': 5000, 'tolerance': 100, 'lazy': True})
+    if m.AUTO_GROUP not in parent.setdefault('proxies', []):
+        parent['proxies'].append(m.AUTO_GROUP)
+
+
 def subscriptions():
     config = configuration()
     result = []
@@ -138,8 +163,20 @@ def subscriptions():
 
 
 def reload_config(new):
+    # Existing installations stay manual until the user explicitly opts in.
+    # Once enabled, subscription additions/deletions also update auto membership.
+    if any(g.get('name') == m.AUTO_GROUP for g in new.get('proxy-groups', [])):
+        configure_auto(new)
     path = m.ROOT / 'mihomo/config.json'
     old = configuration()
+    selections = {name: m.api('/proxies/' + name).get('now') for name in ('PC-Active', 'PC-Mihomo')}
+
+    def restore_selections():
+        for name, selected in selections.items():
+            group = m.api('/proxies/' + name)
+            if selected in group.get('all', []):
+                m.api('/proxies/' + name, 'PUT', {'name': selected})
+
     candidate = m.ROOT / 'mihomo/candidate.json'
     m.atomic(candidate, new)
     test = subprocess.run([str(m.BIN/'mihomo'), '-t', '-d', str(m.ROOT/'mihomo'), '-f', str(candidate)], capture_output=True, timeout=10)
@@ -149,9 +186,12 @@ def reload_config(new):
     os.replace(candidate, path)
     try:
         m.api('/configs?force=true', 'PUT', {'path': str(path)}, timeout=10)
+        restore_selections()
     except Exception:
         m.atomic(path, old)
-        try: m.api('/configs?force=true', 'PUT', {'path': str(path)}, timeout=10)
+        try:
+            m.api('/configs?force=true', 'PUT', {'path': str(path)}, timeout=10)
+            restore_selections()
         except Exception: pass
         raise CatalogError('Не удалось применить подписку. Восстановлена прежняя конфигурация.') from None
 
@@ -187,7 +227,7 @@ def execute(action, args):
         identifier = 'sub-' + secrets.token_hex(6)
         seed = m.ROOT/'mihomo/providers'/(identifier+'.yaml')
         private_text(seed, data)
-        providers[identifier] = {'type':'http','url':args['url'],'path':f'./providers/{identifier}.yaml','interval':86400,'header':{'User-Agent':['mihomo']},'override':{'additional-prefix':name+' · '},'health-check':{'enable':False}}
+        providers[identifier] = {'type':'http','url':args['url'],'path':f'./providers/{identifier}.yaml','interval':86400,'proxy':'PC-Mihomo','header':{'User-Agent':['mihomo']},'override':{'additional-prefix':name+' · '},'health-check':{'enable':False}}
         next(g for g in config['proxy-groups'] if g['name']=='PC-Mihomo')['use'] = list(providers)
         try: reload_config(config)
         except Exception: seed.unlink(missing_ok=True); raise
@@ -198,9 +238,24 @@ def execute(action, args):
         if action == 'update-subscription':
             # Fetch and validate before asking the core to update its own provider.
             download(provider['url'])
-            try: m.api('/providers/proxies/'+urllib.parse.quote(identifier,safe=''), 'PUT', timeout=12)
+            endpoint = '/providers/proxies/'+urllib.parse.quote(identifier,safe='')
+            before = {p['name'] for p in m.api(endpoint).get('proxies', [])}
+            if provider.get('proxy') != 'PC-Mihomo':
+                provider['proxy'] = 'PC-Mihomo'
+                reload_config(config)
+            try: m.api(endpoint, 'PUT', timeout=12)
             except OSError: raise CatalogError('Не удалось обновить подписку.') from None
-            return {'message':'Подписка обновлена.'}
+            after = {p['name'] for p in m.api(endpoint).get('proxies', [])}
+            state = m.state()
+            removed_selected = state.get('mihomo') in before - after
+            if removed_selected:
+                # Never silently move an explicitly selected server to another exit.
+                m.api('/proxies/PC-Mihomo', 'PUT', {'name': 'REJECT'})
+                m.atomic(m.ROOT/'state.json', {**state, 'mihomo': None})
+            message = f'Подписка обновлена. Серверов: {len(after)}; добавлено: {len(after-before)}, удалено: {len(before-after)}.'
+            if removed_selected:
+                message += ' Выбранный сервер удалён из подписки. Выбери другой; доступ через это ядро заблокирован.'
+            return {'message':message}
         if len(config['proxy-providers']) == 1: raise CatalogError('Сначала добавь другую подписку для Mihomo.')
         info = m.api('/providers/proxies/'+urllib.parse.quote(identifier,safe=''))
         names = {p['name'] for p in info.get('proxies',[])}

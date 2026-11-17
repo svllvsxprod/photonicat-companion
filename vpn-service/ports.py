@@ -14,6 +14,7 @@ import manager as m
 
 CONFIG = m.ROOT / 'ports.json'
 RUNTIME = Path('/var/run/photonicat-ports.json')
+WAN_GUARD_ROLE = Path('/var/run/photonicat-wan-guard-role')
 GUARD = Path('/etc/photonicat-vpn/ports.nft')
 ENGINES = {'amneziawg': 'pcawg0', 'mihomo': 'pcmh0'}
 _applied_role = None
@@ -60,7 +61,7 @@ def guard_text(c, engine):
     lan = checked_device(c['lan_bridge'])
     direct = checked_device(c['direct_bridge'])
     wan = checked_device(c['wan_device'])
-    out = f'elements = {{ "{ENGINES[engine]}" }};' if c['lan_enabled'] else ''
+    out = f'elements = {{ "{ENGINES[engine]}" }};' if c['lan_enabled'] and c.get('lan_mode') != 'gearup' else ''
     wifi = checked_device(c['wifi_bridge']) if c.get('wifi_bridge') else None
     protected = f'{{ "{lan}", "{wifi}" }}' if wifi else f'"{lan}"'
     wifi_set = f'set wifi_exit {{ type ifname; elements = {{ "{ENGINES[engine]}" }}; }}' if wifi else ''
@@ -77,15 +78,28 @@ def guard_text(c, engine):
     direct_nat = f'iifname "{lan}" meta mark {m.SOCKET_MARK} oifname != {{ "pcawg0", "pcmh0" }} counter masquerade' if lan_direct else ''
     wifi_forward = (f'iifname "{wifi}" oifname @wifi_exit counter accept\n'
                     f'  iifname "{wifi}" counter drop') if wifi else ''
+    wan_vpn = c.get('wan_sharing', False) and c.get('wan_share_mode', 'direct') == 'vpn'
+    wan_rules = (f'iifname "{wan}" oifname @wan_exit counter accept\n'
+                 f'  iifname "{wan}" counter drop\n'
+                 f'  oifname "{wan}" iifname @wan_exit counter accept\n'
+                 f'  oifname "{wan}" counter drop') if wan_vpn else (
+                 f'iifname "{wan}" oifname {{ "pcawg0", "pcmh0" }} counter drop')
+    if wan_vpn:
+        protected = '{ ' + ', '.join('"'+d+'"' for d in [lan, wifi, wan] if d) + ' }'
+    wan_mark = f'iifname "{wan}" meta mark set {m.ACTIVE_TABLE}' if wan_vpn else ''
     # Independent table survives fw4 reloads and stopping the VPN service.
-    # No conntrack-established exception can bypass this forward guard.
+    # Requires fw4 software AND hardware flow offload disabled (install_ports).
+    # A cached offloaded flow bypasses the forward hook altogether. With the
+    # normal path, no conntrack-established exception can bypass this guard.
     return f'''table inet pcat_ports {{
  set vpn_exit {{ type ifname; {out} }}
  {wifi_set}
+ set wan_exit {{ type ifname; elements = {{ "{ENGINES[engine]}" }}; }}
  chain mark_lan {{
   type filter hook prerouting priority -140; policy accept;
   iifname "{lan}" meta mark set {lan_mark}
   {wifi_mark}
+  {wan_mark}
  }}
  chain dns_lan {{
   type nat hook prerouting priority -105; policy accept;
@@ -100,7 +114,8 @@ def guard_text(c, engine):
   type filter hook forward priority -10; policy accept;
   {lan_forward}
   {wifi_forward}
-  iifname {{ "{direct}", "{wan}" }} oifname {{ "pcawg0", "pcmh0" }} counter drop
+  {wan_rules}
+  iifname "{direct}" oifname {{ "pcawg0", "pcmh0" }} counter drop
  }}
  chain tunnel_nat {{
   type nat hook postrouting priority 95; policy accept;
@@ -121,6 +136,7 @@ def sync_guard(engine=None):
 
 def _sync_guard(engine=None):
     c = config()
+    c['wan_sharing'] = WAN_GUARD_ROLE.exists() and WAN_GUARD_ROLE.read_text().strip() == 'share'
     engine = engine or m.state()['active']
     text = guard_text(c, engine)
     if not GUARD.exists() or GUARD.read_text() != text:
@@ -131,7 +147,8 @@ def _sync_guard(engine=None):
     digest = hashlib.sha256(text.encode()).hexdigest()
     applied = Path('/var/run/photonicat-guard-version')
     if existing and applied.exists() and applied.read_text() == digest:
-        value = f'add element inet pcat_ports vpn_exit {{ "{ENGINES[engine]}" }}\n' if c['lan_enabled'] else ''
+        value = f'add element inet pcat_ports vpn_exit {{ "{ENGINES[engine]}" }}\n' if c['lan_enabled'] and c.get('lan_mode') != 'gearup' else ''
+        value += f'flush set inet pcat_ports wan_exit\nadd element inet pcat_ports wan_exit {{ "{ENGINES[engine]}" }}\n'
         if c.get('wifi_bridge'):
             value += f'flush set inet pcat_ports wifi_exit\nadd element inet pcat_ports wifi_exit {{ "{ENGINES[engine]}" }}\n'
         nft('flush set inet pcat_ports vpn_exit\n' + value)
@@ -171,8 +188,11 @@ def status():
     guard = subprocess.run(['nft', 'list', 'table', 'inet', 'pcat_ports'],
                            capture_output=True, timeout=3).returncode == 0
     engine = m.state()['active']
+    import gearup
+    gu = gearup.status()
     return {
-        'installed': True, 'wan_mode': c['wan_mode'], 'wan_role': role,
+        'installed': True, 'gearup': gu, 'internet_modes': ['direct', 'vpn', 'gearup'],
+        'wan_share_mode': c.get('wan_share_mode', 'direct'), 'wan_mode': c['wan_mode'], 'wan_role': role,
         'wan_link': carrier(c['wan_device']), 'lan_link': carrier(c['lan_device']),
         'wan_reason': runtime.get('reason', 'starting'),
         'wan_address': next((a['address'] for a in wan.get('ipv4-address', [])), None),
@@ -180,10 +200,11 @@ def status():
         'lan_enabled': c['lan_enabled'], 'lan_mode': c.get('lan_mode','vpn'), 'kill_switch': guard,
         'lan_state': ('paused' if not c['lan_enabled'] else
                       'direct' if c.get('lan_mode','vpn') == 'direct' else
+                      ('gearup' if gu.get('running') else 'blocked') if c.get('lan_mode') == 'gearup' else
                       'vpn' if guard and m.interface_up(ENGINES[engine]) else 'blocked'),
-        'lan_address': c['lan_address'], 'direct_address': c['direct_address'],
-        'share_address': c['share_address'], 'dns_policy': 'direct' if c.get('lan_mode','vpn') == 'direct' else 'vpn_only',
-        'ipv6_policy': 'uplink' if c.get('lan_mode','vpn') == 'direct' else 'vpn_or_block', 'engine': engine,
+        'lan_address': (json.loads(gearup.NETWORK.read_text())['gateway'] if c.get('lan_mode') == 'gearup' and gearup.NETWORK.exists() else c['lan_address']), 'direct_address': c['direct_address'],
+        'share_address': c['share_address'], 'dns_policy': 'vpn_only' if c.get('lan_mode','vpn') == 'vpn' else 'direct',
+        'ipv6_policy': 'vpn_or_block' if c.get('lan_mode','vpn') == 'vpn' else 'uplink', 'engine': engine,
     }
 
 
@@ -194,23 +215,47 @@ def request(args):
     if key == 'wan_mode':
         if value not in ('auto', 'uplink', 'share'):
             raise PortsError('Неизвестный режим WAN.')
-    elif key == 'lan_mode':
-        if value not in ('direct', 'vpn'):
+    elif key in ('lan_mode', 'wan_share_mode'):
+        if value not in ('direct', 'vpn', 'gearup'):
             raise PortsError('Неизвестный режим LAN.')
     elif key == 'lan_enabled':
         if type(value) is not bool:
             raise PortsError('Некорректное состояние LAN.')
     else:
         raise PortsError('Неизвестная настройка портов.')
+    import gearup
+    if key in ('lan_mode', 'wan_share_mode') and value == 'gearup':
+        try:
+            gearup.require_ready()
+        except ValueError as exc:
+            raise PortsError(str(exc)) from None
     with (m.ROOT / 'ports.lock').open('w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         c = config()
         m.atomic(CONFIG, {**c, key: value, **({'lan_enabled': True} if key == 'lan_mode' else {})})
-        # Pause is immediate and does not depend on the role detector.
-        sync_guard()
+        # Install the privacy guard before changing memberships. Never fall back.
+        try:
+            sync_guard()
+            if key in ('lan_mode', 'wan_share_mode', 'lan_enabled'):
+                role = WAN_GUARD_ROLE.read_text().strip() if WAN_GUARD_ROLE.exists() else 'uplink'
+                gearup.configure_ports(config(), role)
+        except Exception:
+            m.atomic(CONFIG, c)
+            sync_guard()
+            try:
+                role = WAN_GUARD_ROLE.read_text().strip() if WAN_GUARD_ROLE.exists() else 'uplink'
+                gearup.configure_ports(c, role)
+            except Exception:
+                # Failed rollback must never leave a VPN-labelled port bridged
+                # into the unprotected gaming network.
+                if key in ('lan_mode', 'lan_enabled'):
+                    m.run('ip', 'link', 'set', checked_device(c['lan_device']), 'down', check=False)
+                elif key == 'wan_share_mode' and role == 'share':
+                    m.run('ip', 'link', 'set', checked_device(c['wan_device']), 'down', check=False)
+                raise PortsError('Не удалось восстановить режим. Порт выключен для защиты соединения.')
+            raise
     return {'message': 'Настройка сохранена. Роль WAN определяется автоматически.' if key == 'wan_mode'
-            else 'LAN: Direct.' if key == 'lan_mode' and value == 'direct'
-            else 'LAN: VPN с kill switch.' if key == 'lan_mode'
+            else ('LAN: ' if key == 'lan_mode' else 'WAN при раздаче: ') + {'direct': 'Direct.', 'vpn': 'VPN с kill switch.', 'gearup': 'GearUP. Привязка и ускорение — в приложении GearUP Router.'}[value] if key in ('lan_mode', 'wan_share_mode')
             else 'LAN включён: только VPN.' if value else 'Интернет на LAN заблокирован.'}
 
 
@@ -288,6 +333,8 @@ def probe(device, seconds=6):
     """DISCOVER only, never REQUEST a lease or alter the active WAN address."""
     device = checked_device(device)
     mac = bytes.fromhex(Path('/sys/class/net', device, 'address').read_text().strip().replace(':', ''))
+    import gearup
+    ignored = gearup.own_macs(config()) if CONFIG.exists() else set()
     xid = secrets.randbits(32)
     with socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(3)) as sock:
         sock.bind((device, 0))
@@ -302,6 +349,8 @@ def probe(device, seconds=6):
             try:
                 frame = sock.recv(65535)
             except socket.timeout:
+                continue
+            if frame[6:12] in ignored:
                 continue
             found = dhcp_offer(frame, mac, xid)
             if found:
@@ -352,15 +401,23 @@ def apply_role(role):
     if current == ('1' if uplink else '0') and _applied_role == role:
         return
     _applied_role = None
+    import gearup
+    c = config() if CONFIG.exists() else {}
     if current != ('1' if uplink else '0'):
         # Turn the outgoing role off before bringing the other one up.
         for name in (['pcwan'] if uplink else ['wan', 'wan6']):
             subprocess.run(['ifdown', name], capture_output=True, timeout=5)
+        if c:
+            gearup.configure_ports(c, role, reload=False)
+        WAN_GUARD_ROLE.write_text(role)
+        sync_guard()
         for name in ('wan', 'wan6'):
             m.run('uci', 'set', f'network.{name}.disabled={0 if uplink else 1}')
         m.run('uci', 'set', f'network.pcwan.disabled={1 if uplink else 0}')
         m.run('uci', 'commit', 'network')
         m.run('ubus', 'call', 'network', 'reload')
+    WAN_GUARD_ROLE.write_text(role)
+    sync_guard()
     if not uplink:
         # network reload returns before the new static interface is ready.
         # Rebuilding dnsmasq/fw4 earlier can omit its DHCP range and leave eth0
@@ -368,7 +425,7 @@ def apply_role(role):
         # cannot detect a device which is present but in the wrong zone.
         for _ in range(40):
             ready = interface_status('pcwan')
-            if ready.get('up') and ready.get('ipv4-address'):
+            if ready.get('up') and (ready.get('ipv4-address') or c.get('wan_share_mode') == 'gearup'):
                 break
             time.sleep(.25)
         else:

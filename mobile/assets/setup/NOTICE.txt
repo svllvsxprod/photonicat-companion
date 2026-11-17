@@ -1,0 +1,4 @@
+Photonicat Companion setup payload. No owner keys or subscriptions.
+Mihomo v1.19.32: https://github.com/MetaCubeX/mihomo/tree/v1.19.32 (GPL-3.0).
+AmneziaWG: https://github.com/amnezia-vpn/amneziawg-go/tree/b5928efb6ca19f0153958460c3d141f04abc5c2e (MIT).
+Other dependency licenses are retained in router/vendor.

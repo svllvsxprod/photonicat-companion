@@ -27,7 +27,7 @@ def snapshot(revision):
     raw = call('status')
     output = {'available':True, 'active':raw['active'], 'routing_scope':'unassigned'}
     for engine in ('amneziawg','mihomo'):
-        fields = ('selected','applied','running','last_handshake_time_sec','rx_bytes','tx_bytes','version')
+        fields = ('selected','applied','running','last_handshake_time_sec','rx_bytes','tx_bytes','version','auto')
         output[engine] = {k:raw[engine][k] for k in fields if k in raw[engine]}
     output['amneziawg']['profiles'] = raw['amneziawg']['profiles']
     output['mihomo']['nodes'] = raw['mihomo']['nodes'][:64]
@@ -39,7 +39,8 @@ def snapshot(revision):
     output['revision'] = revision({k:output[k] for k in ('active','subscriptions')} | {
         'awg':output['amneziawg']['selected'],'mihomo':output['mihomo']['selected'],
         'profiles':output['amneziawg']['profiles'],'nodes':output['mihomo']['nodes'],
-        'ports': {k:output['ports'].get(k) for k in ('installed','wan_mode','lan_enabled','lan_mode')}})
+        'auto':output['mihomo'].get('auto', {}).get('name'),
+        'ports': {k:output['ports'].get(k) for k in ('installed','wan_mode','lan_enabled','lan_mode','wan_share_mode')}})
     return output
 
 
@@ -54,12 +55,16 @@ def execute(args, revision):
     if action != 'ports' and any(not isinstance(args[k],str) for k in schemas[action]): raise VpnError('Некорректные значения VPN.')
     current = snapshot(revision)
     if not current.get('available'): raise VpnError('VPN-служба не установлена.')
-    if args['revision'] != current['revision']: raise VpnError('Список VPN изменился. Обнови его и повтори действие.')
+    # Refresh resolves a stale catalog; it targets a stable subscription ID,
+    # checked again by the manager under its lock. Selections/deletions still
+    # require the exact revision that the user reviewed.
+    if action != 'update-subscription' and args['revision'] != current['revision']:
+        raise VpnError('Список VPN изменился. Обнови его и повтори действие.')
     value = args.get('value')
     if action == 'ports':
         if args['setting'] == 'wan_mode' and value in ('auto','uplink','share'):
             return call('ports-set',payload={'setting':args['setting'],'value':value})
-        if args['setting'] == 'lan_mode' and value in ('direct','vpn'):
+        if args['setting'] in ('lan_mode','wan_share_mode') and value in ('direct','vpn','gearup'):
             return call('ports-set',payload={'setting':args['setting'],'value':value})
         if args['setting'] == 'lan_enabled' and type(value) is bool:
             return call('ports-set',payload={'setting':args['setting'],'value':value})
@@ -67,7 +72,8 @@ def execute(args, revision):
     if action in ('engine','check') and value not in ('amneziawg','mihomo'): raise VpnError('Неизвестное ядро.')
     if action in ('awg','delete-awg') and (value or args.get('id')) not in {p['id'] for p in current['amneziawg']['profiles']}:
         raise VpnError('Профиль не найден.')
-    if action == 'node' and value not in current['mihomo']['nodes']: raise VpnError('Сервер не найден.')
+    if action == 'node' and value not in current['mihomo']['nodes'] and value != current['mihomo'].get('auto', {}).get('name'):
+        raise VpnError('Сервер не найден.')
     if action == 'check': return {'check':call('check',value)}
     if action in ('engine','awg','node'):
         call({'engine':'select-engine','awg':'select-awg','node':'select-node'}[action],value)

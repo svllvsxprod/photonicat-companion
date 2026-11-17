@@ -106,27 +106,64 @@ class _WifiVpnPanelState extends State<WifiVpnPanel> {
             const SizedBox(height: 8),
             InternetModeSwitch(
               switchKey: ValueKey('wifi-vpn-${radio['id']}'),
-              vpn: radio['vpn']['enabled'] == true,
+              mode:
+                  radio['vpn']['mode'] as String? ??
+                  (radio['vpn']['enabled'] == true ? 'vpn' : 'direct'),
               onChanged: enabled
                   ? (value) =>
-                        apply({'vpn_enabled': value}, radioId: radio['id'])
+                        apply({'internet_mode': value}, radioId: radio['id'])
                   : null,
             ),
             if (radio['vpn']['enabled'] == true)
               Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                  '${(router.vpn?['active'] ?? radio['vpn']['engine']) == 'mihomo' ? 'Mihomo' : 'AmneziaWG'} · kill switch',
-                  style: const TextStyle(color: yellow, fontSize: 12),
+                padding: const EdgeInsets.only(top: 16, bottom: 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(top: 1),
+                      child: Icon(
+                        Icons.shield_outlined,
+                        color: yellow,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Защита VPN включена',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            (router.vpn?['active'] ?? radio['vpn']['engine']) ==
+                                    'mihomo'
+                                ? 'Mihomo'
+                                : 'AmneziaWG',
+                            style: const TextStyle(color: muted, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ),
+              )
+            else
+              const SizedBox(height: 12),
             Text(
               radio['vpn']['enabled'] == true
-                  ? 'Kill switch включён. При потере VPN интернет блокируется, включая DNS и IPv6.'
+                  ? 'При потере VPN интернет блокируется, включая DNS и IPv6.'
                   : 'Direct — без VPN. В режиме VPN используется основное ядро с kill switch.',
               style: const TextStyle(color: muted, fontSize: 11, height: 1.4),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 12),
             const Text(
               'Смена режима перезапускает эту точку доступа.',
               style: TextStyle(color: muted, fontSize: 11),

@@ -283,7 +283,7 @@ class Engine:
             self.pending += 1
             asyncio.create_task(self.handle(device, data.strip()))
 
-    async def handle(self, device, data):
+    async def handle(self, device, data, send=None):
         try:
             request = self.crypto.open(data)
             seq, op = request.get("seq"), request.get("op")
@@ -340,15 +340,18 @@ class Engine:
                 else:
                     result["error"] = "Unsupported operation"
             async with self.lock:
-                if not self.tx.notifying:
+                if send is not None:
+                    await send(self.crypto.seal(result) + b"\n")
+                elif not self.tx.notifying:
                     return
-                output = self.crypto.seal(result) + b"\n"
-                # 19-byte data payload works even with the minimum ATT MTU (23).
-                for offset in range(0, len(output), 19):
-                    chunk = bytes([1 if offset == 0 else 0]) + output[offset:offset + 19]
-                    self.tx.value = chunk
-                    self.tx.emit_properties_changed({"Value": chunk})
-                    await asyncio.sleep(0.008)
+                else:
+                    output = self.crypto.seal(result) + b"\n"
+                    # 19-byte data payload works even with the minimum ATT MTU (23).
+                    for offset in range(0, len(output), 19):
+                        chunk = bytes([1 if offset == 0 else 0]) + output[offset:offset + 19]
+                        self.tx.value = chunk
+                        self.tx.emit_properties_changed({"Value": chunk})
+                        await asyncio.sleep(0.008)
                 if op == "reboot" and result.get("ok"):
                     asyncio.get_running_loop().call_later(
                         2, lambda: subprocess.Popen(["/sbin/reboot"],
@@ -374,12 +377,8 @@ class Engine:
             await asyncio.sleep(3)
 
 
-async def main():
-    key = bytes.fromhex(Path("/etc/photonicat-companion/key").read_text().strip())
+async def setup_ble(key, engine, svc, rx, tx):
     bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
-    svc, rx, tx = GattService(), Characteristic(RX, ["write"]), Characteristic(TX, ["notify"])
-    engine = Engine(Crypto(key), tx)
-    rx.handler = engine.receive
     service_path = ROOT + "/service0"
     objects = {service_path: {"org.bluez.GattService1": {
         "UUID": Variant("s", SERVICE), "Primary": Variant("b", True)}}}
@@ -421,6 +420,24 @@ async def main():
     await adapter.get_interface("org.bluez.GattManager1").call_register_application(ROOT, {})
     await adapter.get_interface("org.bluez.LEAdvertisingManager1").call_register_advertisement(ad_path, {})
     LOG.info("BLE companion ready; authenticated telemetry and controls")
+    return bus
+
+
+async def main():
+    key = bytes.fromhex(Path("/etc/photonicat-companion/key").read_text().strip())
+    svc, rx, tx = GattService(), Characteristic(RX, ["write"]), Characteristic(TX, ["notify"])
+    engine = Engine(Crypto(key), tx)
+    rx.handler = engine.receive
+    from lan_transport import LanTransport
+    lan = LanTransport(engine)
+    try:
+        await lan.start()
+    except OSError:
+        LOG.exception("LAN transport unavailable; BLE remains active")
+    try:
+        engine.bus = await setup_ble(key, engine, svc, rx, tx)
+    except Exception:
+        LOG.exception("BLE unavailable; LAN remains active")
     await engine.sample()
 
 

@@ -131,10 +131,12 @@ def wifi_vpn_info(device):
         network = wifi_config()[section].get('network')
         if isinstance(network, list):
             network = network[0] if len(network) == 1 else None
-        if network not in ('pcdirect', 'pcwifi'):
+        if network not in ('lan', 'pcdirect', 'pcwifi', 'pcgearup'):
             return None
         state = json.loads((root / 'state.json').read_text())
-        return {'enabled': network == 'pcwifi', 'engine': state['active'],
+        mode = ports.get('lan_mode', 'vpn') if network == 'lan' else {'pcdirect':'direct', 'pcwifi':'vpn', 'pcgearup':'gearup'}[network]
+        return {'enabled': mode == 'vpn', 'mode': mode,
+                'internet_modes': ['direct', 'vpn', 'gearup'], 'engine': state['active'],
                 'profile': state.get(state['active'], ''), 'network': network}
     except (OSError, ValueError, KeyError, ControlError):
         return None
@@ -156,11 +158,14 @@ def write_wifi(payload):
             (section, 'ssid', payload['ssid']), (section, 'key', payload['password']),
         ]:
             context.set('wireless', name, option, value)
-        if 'vpn_enabled' in payload:
+        if 'internet_mode' in payload:
+            context.set('wireless', section, 'network',
+                        {'direct':'pcdirect', 'vpn':'pcwifi', 'gearup':'pcgearup'}[payload['internet_mode']])
+        elif 'vpn_enabled' in payload:
             context.set('wireless', section, 'network',
                         'pcwifi' if payload['vpn_enabled'] else 'pcdirect')
         context.commit('wireless')
-    if 'vpn_enabled' in payload:
+    if 'vpn_enabled' in payload or 'internet_mode' in payload:
         # Recreate the AP so hostapd joins the new bridge and clients renew DHCP.
         for action in ('down', 'up'):
             result = subprocess.run(['/sbin/wifi', action, payload['device']],
@@ -337,7 +342,7 @@ class Controls:
         raise ControlError('Эта функция не поддерживается службой.')
 
     def set_wifi(self, args):
-        if set(args) - {'id', 'revision', 'ssid', 'enabled', 'password', 'vpn_enabled'}:
+        if set(args) - {'id', 'revision', 'ssid', 'enabled', 'password', 'vpn_enabled', 'internet_mode'}:
             raise ControlError('Неизвестный параметр Wi-Fi.')
         radio = next((r for r in self.wifi_raw() if r.get('device') == args.get('id')), None)
         if radio is None or 'wifi_set' not in self.wifi_public(radio)['actions']:
@@ -347,6 +352,13 @@ class Controls:
             raise ControlError('Настройки уже изменились. Закрой форму и открой её снова.')
         if 'vpn_enabled' in args and (type(args['vpn_enabled']) is not bool or vpn is None):
             raise ControlError('Режим VPN недоступен для этой точки доступа.')
+        if 'internet_mode' in args:
+            if 'vpn_enabled' in args or args['internet_mode'] not in ('direct','vpn','gearup') or vpn is None:
+                raise ControlError('Некорректный режим интернета.')
+            if args['internet_mode'] == 'gearup':
+                import vpn_control
+                if not vpn_control.call('ports-status').get('gearup', {}).get('running'):
+                    raise ControlError('Контейнер GearUP не запущен. Режим не изменён.')
         ssid, enabled, password = args.get('ssid'), args.get('enabled'), args.get('password')
         if (not isinstance(ssid, str) or not 1 <= len(ssid.encode('utf-8')) <= 32
                 or any(ord(c) < 32 or ord(c) == 127 for c in ssid) or type(enabled) is not bool):
@@ -361,8 +373,10 @@ class Controls:
             payload['password'] = password
         if 'vpn_enabled' in args and args['vpn_enabled'] != vpn['enabled']:
             payload['vpn_enabled'] = args['vpn_enabled']
+        if 'internet_mode' in args and args['internet_mode'] != vpn.get('mode', 'vpn' if vpn['enabled'] else 'direct'):
+            payload['internet_mode'] = args['internet_mode']
         if (ssid == radio['ssid'] and enabled == radio['enabled']
-                and payload['password'] == radio['password'] and 'vpn_enabled' not in payload):
+                and payload['password'] == radio['password'] and 'vpn_enabled' not in payload and 'internet_mode' not in payload):
             return {'message': 'Настройки уже совпадают.'}
         self.backup('wireless.before', '/etc/config/wireless')
         write_wifi(payload)
@@ -372,6 +386,8 @@ class Controls:
             updated_vpn = wifi_vpn_info(radio['device'])
             vpn_applied = ('vpn_enabled' not in payload or
                            (updated_vpn is not None and updated_vpn['enabled'] == payload['vpn_enabled']))
+            if 'internet_mode' in payload:
+                vpn_applied = updated_vpn is not None and updated_vpn.get('mode') == payload['internet_mode']
             if vpn_applied and all(updated.get(k) == payload[k] for k in ('ssid', 'enabled', 'password')):
                 return {'message': 'Wi-Fi сохранён. Подключение клиентов может занять несколько секунд.'}
         raise ControlError('Запрос отправлен, но результат не подтверждён. Обнови состояние перед повтором.')
