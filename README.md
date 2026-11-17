@@ -15,15 +15,15 @@ Photonicat Companion helps you manage your **Photonicat 2** without opening a co
 
 ## Download
 
-| Device | Version 0.7.5 beta |
+| Device | Version 0.7.6 beta |
 | --- | --- |
-| Android 12 or later | [Download APK](https://github.com/svllvsxprod/photonicat-companion/releases/download/v0.7.5-beta.1/Photonicat-0.7.5-Android.apk) |
-| Apple Silicon Mac, macOS 12 or later | [Download DMG](https://github.com/svllvsxprod/photonicat-companion/releases/download/v0.7.5-beta.1/Photonicat-0.7.5-beta.1-macOS-AppleSilicon.dmg) |
-| Windows x64 | [Download EXE installer](https://github.com/svllvsxprod/photonicat-companion/releases/download/v0.7.5-beta.1/Photonicat-0.7.5-Windows-x64-Setup.exe) |
+| Android 12 or later | [Download APK](https://github.com/svllvsxprod/photonicat-companion/releases/download/v0.7.6-beta.1/Photonicat-0.7.6-Android.apk) |
+| Apple Silicon Mac, macOS 12 or later | [Download DMG](https://github.com/svllvsxprod/photonicat-companion/releases/download/v0.7.6-beta.1/Photonicat-0.7.6-beta.1-macOS-AppleSilicon.dmg) |
+| Windows x64 | [Download EXE installer](https://github.com/svllvsxprod/photonicat-companion/releases/download/v0.7.6-beta.1/Photonicat-0.7.6-Windows-x64-Setup.exe) |
 
-[All release files](https://github.com/svllvsxprod/photonicat-companion/releases/tag/v0.7.5-beta.1), including portable Windows ZIP, source and checksums. This is a test release: APK uses a test certificate, Windows EXE is unsigned, and Mac uses an Apple development signature without notarization. Your system may show a warning. iPhone is not supported yet.
+[All release files](https://github.com/svllvsxprod/photonicat-companion/releases/tag/v0.7.6-beta.1), including portable Windows ZIP, source and checksums. This is a test release: APK uses a test certificate, Windows EXE is unsigned, and Mac uses an Apple development signature without notarization. Your system may show a warning. iPhone is not supported yet.
 
-**New in 0.7.5:** Mac and Windows reconnect automatically when you switch from Wi-Fi to Ethernet or back. You do not need to enter the pairing key again.
+**New in 0.7.6:** the bundled router service retries when the Bluetooth adapter appears late during startup. Mac and Windows keep automatic reconnection when you switch between Wi-Fi and Ethernet; the pairing key stays saved.
 
 ## Install the app
 
@@ -116,7 +116,7 @@ Separating Wi-Fi and LAN into different networks can briefly interrupt the conne
 | Modem is detected but has no internet | SIM, APN and operator registration in the router's own interface. |
 | VPN has no internet | Selected server, subscription expiry and profile format. The kill switch deliberately blocks access when the tunnel fails. |
 
-**If Bluetooth disappears after a reboot but desktop control still works:** the service shipped in 0.7.5-beta.1 could start before the Bluetooth adapter and never retry. Source and the setup payload on `main` now retry while keeping LAN control available. Previously published DMG and EXE files still bundle the old service; updating the APK alone does not replace it.
+**If Bluetooth disappears after a reboot but desktop control still works:** the service in 0.7.5-beta.1 could start before the Bluetooth adapter and never retry. The 0.7.6 installers include the fix for new router installations. Updating the phone or desktop app alone does not replace an existing router service; pairing again reads its existing key.
 
 For temporary recovery, open Terminal in your router's web interface and run:
 
@@ -124,7 +124,7 @@ For temporary recovery, open Terminal in your router's web interface and run:
 /etc/init.d/photonicat-companion restart
 ```
 
-This restarts Companion control only, not the modem, Wi-Fi or VPN cores. It is a temporary workaround for the old service; the fix on `main` addresses startup recovery. An authenticated Samsung Bluetooth connection was verified after applying the fix; another reboot of the live router was not tested.
+This restarts Companion control only, not the modem, Wi-Fi or VPN cores. It is a temporary workaround for the old service; the service bundled with 0.7.6 addresses startup recovery. An authenticated Samsung Bluetooth connection was verified after applying the fix; another reboot of the live router was not tested.
 
 When reporting a problem, include the app version, operating system, connection type and error text. Remove keys, passwords, subscription links and VPN configurations.
 
@@ -132,7 +132,7 @@ When reporting a problem, include the app version, operating system, connection 
 
 This is an independent app, not an official Photonicat product. No owner's keys, subscriptions or live-router settings are included. GearUP has been removed from the app.
 
-Version 0.7.5 passed 39 Flutter tests, code analysis and build checks. A real router connection recovered after simulated adapter loss. Windows installation, launch and uninstall were checked; the APK was built, its signature verified, and an upgrade from 0.6.1 with working Bluetooth was confirmed on Samsung. A factory-fresh router setup and physical Wi-Fi/cable switching were not verified for this release. The custom control protocol has not received an independent audit.
+Version 0.7.6 passed 39 Flutter tests, 56 Python tests, code analysis and build checks. The Bluetooth retry tests cover a late adapter, cancellation and cleanup after failed initialization. An authenticated Bluetooth connection was verified on Samsung after fixing the live router. Windows installation, hidden startup and uninstall were checked in the build environment. A factory-fresh router setup, another live router reboot and real Windows networking were not verified. The custom control protocol has not received an independent audit.
 
 <details>
 <summary>For developers: builds and tests</summary>

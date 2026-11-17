@@ -1,4 +1,4 @@
-# Photonicat Companion 0.7.5 — тестовая версия
+# Photonicat Companion 0.7.6 — тестовая версия
 
 Приложение для управления Photonicat 2 со смартфона и компьютера.
 Настольная версия работает через локальную сеть. На Mac окно открывается
@@ -19,16 +19,16 @@
 - Роутер: Photonicat 2, штатная PhotonicatWrt 26.04.1, доступ администратора по SSH.
 - Windows: установщик x64; требуется отдельная проверка интерфейса и связи с устройством.
 
-- Android: Android 12+, APK доступен в [релизе 0.7.5](https://github.com/svllvsxprod/photonicat-companion/releases/tag/v0.7.5-beta.1).
+- Android: Android 12+, APK доступен в [релизе 0.7.6](https://github.com/svllvsxprod/photonicat-companion/releases/tag/v0.7.6-beta.1).
 - [Установка Android и повседневное управление](USAGE_RU.md).
-- [Что изменилось в 0.7.5](RELEASE_0_7_5.md).
+- [Что изменилось в 0.7.6](RELEASE_0_7_6.md).
 
 ## Сборка
 
 Flutter 3.44.2 и Dart 3.12.2, Xcode для Mac; Flutter, Visual Studio с C++ и
 Inno Setup 6.3+ для Windows. Сначала выполните `flutter pub get` в `mobile`.
 Сборка Mac: `tools/build-macos.sh`. Сборка Windows: `tools/build-windows.ps1`.
-Артефакты Windows сохраняются в локальную папку `releases/private/0.7.5-beta.1`.
+Артефакты Windows сохраняются в локальную папку `releases/private/0.7.6-beta.1`.
 
 Публичный архив содержит проверенный пакет служб для ARM64. Чтобы пересобрать
 его из закреплённых исходников и официального бинарного выпуска, запустите

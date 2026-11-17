@@ -42,7 +42,7 @@ def build():
     exe=[k for k in files if k.startswith('etc/init.d/') or k.endswith(('/mihomo','/amneziawg-go'))]
     entries={'payload/'+k:v for k,v in files.items()}
     for name in ('install.py','probe.py','network.py','defaults.py'):entries[name]=(ROOT/'installer'/name).read_bytes()
-    entries['manifest.json']=json.dumps({'version':'0.7.0-beta.1','files':{k:hashlib.sha256(v).hexdigest() for k,v in files.items()},'executables':exe},sort_keys=True).encode()
+    entries['manifest.json']=json.dumps({'version':'0.7.6-beta.1','files':{k:hashlib.sha256(v).hexdigest() for k,v in files.items()},'executables':exe},sort_keys=True).encode()
     for name,data in entries.items():
         if any(x in data for x in DENY):raise ValueError('Private material detected in '+name)
     buffer=io.BytesIO()

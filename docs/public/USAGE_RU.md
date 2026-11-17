@@ -1,6 +1,6 @@
-# Установка и использование Photonicat Companion 0.7.5
+# Установка и использование Photonicat Companion 0.7.6
 
-[Скачать установщики и APK](https://github.com/svllvsxprod/photonicat-companion/releases/tag/v0.7.5-beta.1) · [Мастер настройки со скриншотами](SETUP_RU.md)
+[Скачать установщики и APK](https://github.com/svllvsxprod/photonicat-companion/releases/tag/v0.7.6-beta.1) · [Мастер настройки со скриншотами](SETUP_RU.md)
 
 Это тестовый выпуск для Photonicat 2. Для первичной установки службы поддерживается штатная PhotonicatWrt 26.04.1. Полный проход с заводского состояния ещё не проверен. Приложение не заменяет прошивку и не устанавливает драйверы модема или Wi-Fi.
 
@@ -8,10 +8,10 @@
 
 | Устройство | Файл в релизе | Управление роутером |
 | --- | --- | --- |
-| Mac с Apple Silicon, macOS 12+ | `Photonicat-0.7.5-beta.1-macOS-AppleSilicon.dmg` | По Wi-Fi или Ethernet |
-| Windows x64 | `Photonicat-0.7.5-Windows-x64-Setup.exe` | По Wi-Fi или Ethernet |
-| Windows без установки | `Photonicat-0.7.5-Windows-x64.zip` | Распаковать целиком, запустить `photonicat.exe` |
-| Android 12+ | `Photonicat-0.7.5-Android.apk` | По Bluetooth LE |
+| Mac с Apple Silicon, macOS 12+ | `Photonicat-0.7.6-beta.1-macOS-AppleSilicon.dmg` | По Wi-Fi или Ethernet |
+| Windows x64 | `Photonicat-0.7.6-Windows-x64-Setup.exe` | По Wi-Fi или Ethernet |
+| Windows без установки | `Photonicat-0.7.6-Windows-x64.zip` | Распаковать целиком, запустить `photonicat.exe` |
+| Android 12+ | `Photonicat-0.7.6-Android.apk` | По Bluetooth LE |
 
 В релизе приложены исходники и контрольные суммы SHA-256. APK подписан текущим тестовым сертификатом проекта. Windows EXE пока без цифровой подписи, Mac DMG — с подписью разработки Apple, без нотариализации. Если система запрещает запуск, не отключайте системную защиту целиком: проверьте источник файла и используйте собственную сборку либо дождитесь подписанного публичного выпуска.
 

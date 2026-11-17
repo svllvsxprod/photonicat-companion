@@ -8,7 +8,7 @@ import tarfile
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-DEST = ROOT / 'releases/private/0.7.5-beta.1'
+DEST = ROOT / 'releases/private/0.7.6-beta.1'
 TREES = ['mobile/lib', 'mobile/test', 'mobile/assets', 'mobile/macos', 'mobile/windows',
          'mobile/vendor/reactive_ble_mobile', 'router/vendor', 'installer', 'docs/public']
 FILES = ['.gitignore', '.github/workflows/windows-build.yml', 'mobile/pubspec.yaml', 'mobile/pubspec.lock', 'mobile/analysis_options.yaml',
@@ -55,7 +55,7 @@ def build():
         audit(data,name);entries[name]=data
     entries['README.md']=(ROOT/'docs/public/README.md').read_text().replace('](SETUP_RU.md)', '](docs/public/SETUP_RU.md)').encode()
     DEST.mkdir(parents=True,exist_ok=True)
-    output=DEST/'Photonicat-0.7.5-beta.1-Desktop-Source.zip'
+    output=DEST/'Photonicat-0.7.6-beta.1-Desktop-Source.zip'
     with zipfile.ZipFile(output,'w',compression=zipfile.ZIP_DEFLATED) as archive:
         for name,data in sorted(entries.items()):archive.writestr('Photonicat/'+name,data)
     report={'files':len(entries),'sha256':hashlib.sha256(output.read_bytes()).hexdigest(),
