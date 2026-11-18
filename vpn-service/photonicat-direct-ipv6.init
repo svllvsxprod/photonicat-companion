@@ -1,0 +1,15 @@
+#!/bin/sh /etc/rc.common
+# Start early, but wait for netifd in a supervised worker without blocking boot.
+START=34
+USE_PROCD=1
+start_service() {
+    procd_open_instance boot-sync
+    procd_set_param command /usr/bin/python3 /opt/photonicat-vpn/direct_ipv6.py --wait
+    procd_set_param stdout 1
+    procd_set_param stderr 1
+    # This worker finishes after synchronization; do not respawn a completed job.
+    procd_close_instance
+}
+reload_service() {
+    /usr/bin/python3 /opt/photonicat-vpn/direct_ipv6.py
+}

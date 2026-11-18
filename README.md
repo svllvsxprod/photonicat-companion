@@ -126,6 +126,8 @@ For temporary recovery, open Terminal in your router's web interface and run:
 
 This restarts Companion control only, not the modem, Wi-Fi or VPN cores. It is a temporary workaround for the old service; the service bundled with 0.7.6 addresses startup recovery. An authenticated Samsung Bluetooth connection was verified after applying the fix; another reboot of the live router was not tested.
 
+**Legacy Direct IPv6 startup:** source includes bounded waiting for a late network interface. Its startup worker finishes after synchronization; it does not need to keep running. This maintenance fix is separate from app version 0.7.6 and must be applied to an existing router service separately.
+
 When reporting a problem, include the app version, operating system, connection type and error text. Remove keys, passwords, subscription links and VPN configurations.
 
 ## Project status
