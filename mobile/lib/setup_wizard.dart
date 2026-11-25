@@ -28,6 +28,7 @@ class _SetupWizardState extends State<SetupWizard> {
   int step = 0;
   bool busy = false, reveal = false;
   String? error;
+  String? performanceStatus;
   String progress = '';
   Timer? clipboardClear;
 
@@ -149,6 +150,13 @@ class _SetupWizardState extends State<SetupWizard> {
       await widget.onConnected?.call(result!);
     }
     if (mounted) setState(() => step = 2);
+  });
+
+  Future<void> performance({bool restore = false}) => work(() async {
+    final status = widget.demo
+        ? 'Предпросмотр настройки производительности.'
+        : await connection!.setPerformance(restore: restore);
+    if (mounted) setState(() => performanceStatus = status);
   });
 
   Future<void> pickProfiles() => work(() async {
@@ -397,6 +405,20 @@ class _SetupWizardState extends State<SetupWizard> {
                 ),
             ],
             if (step == 2) ...[
+              ExpansionTile(
+                title: const Text('Производительность VPN'),
+                children: [
+                  paragraph(
+                    'Для проводного WAN можно распределить обработку VPN по ядрам Photonicat 2. Текущая сессия продолжит работу. Изменение режима Mihomo применяется при следующем запуске роутера.',
+                  ),
+                  button('Применить оптимизацию', () => performance()),
+                  TextButton(
+                    onPressed: busy ? null : () => performance(restore: true),
+                    child: const Text('Вернуть прежние настройки'),
+                  ),
+                  if (performanceStatus != null) paragraph(performanceStatus!),
+                ],
+              ),
               paragraph(
                 'Добавь свою подписку Mihomo или несколько файлов AmneziaWG. Можно использовать оба ядра. Профили не включаются автоматически.',
               ),

@@ -41,7 +41,7 @@ jobs:
       - name: Verify silent installation and startup
         shell: pwsh
         run: |
-          $setup = Get-ChildItem 'releases/private/0.7.6-beta.1/*-Setup.exe' | Select-Object -First 1
+          $setup = Get-ChildItem 'releases/private/0.7.7-beta.1/*-Setup.exe' | Select-Object -First 1
           if (-not $setup) { throw 'Setup artifact missing' }
           $target = Join-Path $env:RUNNER_TEMP 'Photonicat-Smoke'
           $installation = Start-Process $setup.FullName -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/TASKS=autostart',"/DIR=$target" -Wait -PassThru
@@ -66,10 +66,10 @@ jobs:
           Set-ItemProperty $runKey -Name Photonicat -Value "`"$target\photonicat.exe`" --autostart"
           $uninstall = Start-Process "$target/unins000.exe" -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
           if ($uninstall.ExitCode -ne 0 -or (Get-ItemProperty $runKey -Name Photonicat -ErrorAction SilentlyContinue).Photonicat) { throw 'App-created startup entry not cleaned' }
-          @{install='passed';startup='registered and launched hidden';uninstall='passed';unchecked_startup='disabled';app_created_entry_cleanup='passed';router_access='not tested'} | ConvertTo-Json | Set-Content 'releases/private/0.7.6-beta.1/windows-verification.json'
+          @{install='passed';startup='registered and launched hidden';uninstall='passed';unchecked_startup='disabled';app_created_entry_cleanup='passed';router_access='not tested'} | ConvertTo-Json | Set-Content 'releases/private/0.7.7-beta.1/windows-verification.json'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: Photonicat-Windows-x64
-          path: releases/private/0.7.6-beta.1/*
+          path: releases/private/0.7.7-beta.1/*
           if-no-files-found: error
           retention-days: 3

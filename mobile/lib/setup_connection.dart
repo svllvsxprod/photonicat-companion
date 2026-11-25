@@ -267,6 +267,36 @@ with (p/'transaction.lock').open('w') as f:
     }
   }
 
+  Future<String> setPerformance({required bool restore}) async {
+    final script = await rootBundle.loadString('assets/setup/performance.py');
+    final operation = restore ? 'restore' : 'apply';
+    final reply = await _run(
+      'python3 - $operation',
+      input: utf8.encode(script),
+    );
+    final status = jsonDecode(utf8.decode(reply))['status'];
+    return switch (status) {
+      'ready' => 'Распределение нагрузки включено. Настройки Mihomo сохранены.',
+      'saved' =>
+        'Настройки сохранены. Новый режим Mihomo вступит в силу при следующем запуске роутера.',
+      'restored' =>
+        'Прежние настройки восстановлены. Перезапусти роутер в удобное время.',
+      'no_backup' => 'На этом роутере нет изменений, внесённых этим мастером.',
+      'unsupported' => throw const SetupFailure(
+        'Настройка доступна для штатного Photonicat 2 с проводным WAN eth0, Mihomo 1.19.32 и обычным распределением пакетов. Индивидуальные настройки сохранены.',
+      ),
+      'modified' => throw const SetupFailure(
+        'Сохранённые настройки были изменены вручную. Проверь их перед повторным применением.',
+      ),
+      'busy' || 'retry' => throw const SetupFailure(
+        'Повтори действие после завершения текущей операции роутера.',
+      ),
+      _ => throw const SetupFailure(
+        'Роутер не смог завершить настройку производительности.',
+      ),
+    };
+  }
+
   Future<void> addSubscription(String label, String url) =>
       _manage('add-subscription', {'label': label, 'url': url});
   Future<void> addProfile(String label, String text) =>

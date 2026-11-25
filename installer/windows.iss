@@ -1,6 +1,6 @@
 ; Build on Windows with Inno Setup 6.3+. Never contains a router key.
 #ifndef AppVersion
-  #define AppVersion "0.7.6"
+  #define AppVersion "0.7.7"
 #endif
 #ifndef ReleaseDir
   #error ReleaseDir is required
