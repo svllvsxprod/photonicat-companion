@@ -15,15 +15,15 @@ Photonicat Companion helps you manage your **Photonicat 2** without opening a co
 
 ## Download
 
-| Device | Version 0.7.6 beta |
+| Device | Download |
 | --- | --- |
-| Android 12 or later | [Download APK](https://github.com/svllvsxprod/photonicat-companion/releases/download/v0.7.6-beta.1/Photonicat-0.7.6-Android.apk) |
-| Apple Silicon Mac, macOS 12 or later | [Download DMG](https://github.com/svllvsxprod/photonicat-companion/releases/download/v0.7.6-beta.1/Photonicat-0.7.6-beta.1-macOS-AppleSilicon.dmg) |
-| Windows x64 | [Download EXE installer](https://github.com/svllvsxprod/photonicat-companion/releases/download/v0.7.6-beta.1/Photonicat-0.7.6-Windows-x64-Setup.exe) |
+| Android 12 or later | [APK 0.7.6 beta](https://github.com/svllvsxprod/photonicat-companion/releases/download/v0.7.6-beta.1/Photonicat-0.7.6-Android.apk) |
+| Apple Silicon Mac, macOS 12 or later | [DMG 0.7.7 beta](https://github.com/svllvsxprod/photonicat-companion/releases/download/v0.7.7-beta.1/Photonicat-0.7.7-beta.1-macOS-AppleSilicon.dmg) |
+| Windows x64 | [Installer 0.7.7 beta](https://github.com/svllvsxprod/photonicat-companion/releases/download/v0.7.7-beta.1/Photonicat-0.7.7-Windows-x64-Setup.exe) |
 
-[All release files](https://github.com/svllvsxprod/photonicat-companion/releases/tag/v0.7.6-beta.1), including portable Windows ZIP, source and checksums. This is a test release: APK uses a test certificate, Windows EXE is unsigned, and Mac uses an Apple development signature without notarization. Your system may show a warning. iPhone is not supported yet.
+[All release files](https://github.com/svllvsxprod/photonicat-companion/releases/tag/v0.7.7-beta.1), including portable Windows ZIP, source and checksums. This is a test release: APK uses a test certificate, Windows EXE is unsigned, and Mac uses an Apple development signature without notarization. Your system may show a warning. iPhone is not supported yet.
 
-**New in 0.7.6:** the bundled router service retries when the Bluetooth adapter appears late during startup. Mac and Windows keep automatic reconnection when you switch between Wi-Fi and Ethernet; the pairing key stays saved.
+**New in 0.7.7 for Mac and Windows.** The setup wizard can tune VPN performance on a Photonicat 2 using Ethernet WAN. This works with both new and existing Companion installations.
 
 ## Install the app
 
@@ -58,6 +58,8 @@ The wizard lists the model, firmware, modems and Wi-Fi cards it found. An option
 Click **Install and connect («Установить и подключиться»)**. The wizard installs the companion service and VPN cores, retrieves the key and checks the connection. Keep power connected and avoid changing network settings during installation. Do not bypass a compatibility error manually.
 
 If the service is already installed, choose **Pair app («Привязать приложение»)**. This uses the existing key and preserves settings. A new installation starts with ordinary internet, **Direct**; you select VPN later.
+
+**VPN performance.** On the VPN profiles step, open **«Производительность VPN» → «Применить оптимизацию»**. The wizard distributes packet processing across CPU cores. If the existing Mihomo configuration needs a stack change, it takes effect the next time the router starts. Profiles and pairing keys are preserved. Choose «Вернуть прежние настройки» in the same section to undo the change. Throughput was measured with Ethernet WAN. Cellular performance has not been measured.
 
 <p align="center"><img src="docs/public/screenshots/02-hardware.png" width="420" alt="Step 2: detected hardware and service installation"></p>
 

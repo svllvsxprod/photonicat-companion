@@ -15,15 +15,15 @@ Photonicat Companion помогает управлять **Photonicat 2** без
 
 ## Скачать
 
-| Устройство | Версия 0.7.6 beta |
+| Устройство | Скачать |
 | --- | --- |
-| Android 12 и новее | [Скачать APK](https://github.com/svllvsxprod/photonicat-companion/releases/download/v0.7.6-beta.1/Photonicat-0.7.6-Android.apk) |
-| Mac с Apple Silicon, macOS 12 и новее | [Скачать DMG](https://github.com/svllvsxprod/photonicat-companion/releases/download/v0.7.6-beta.1/Photonicat-0.7.6-beta.1-macOS-AppleSilicon.dmg) |
-| Windows x64 | [Скачать установщик EXE](https://github.com/svllvsxprod/photonicat-companion/releases/download/v0.7.6-beta.1/Photonicat-0.7.6-Windows-x64-Setup.exe) |
+| Android 12 и новее | [APK 0.7.6 beta](https://github.com/svllvsxprod/photonicat-companion/releases/download/v0.7.6-beta.1/Photonicat-0.7.6-Android.apk) |
+| Mac с Apple Silicon, macOS 12 и новее | [DMG 0.7.7 beta](https://github.com/svllvsxprod/photonicat-companion/releases/download/v0.7.7-beta.1/Photonicat-0.7.7-beta.1-macOS-AppleSilicon.dmg) |
+| Windows x64 | [Установщик 0.7.7 beta](https://github.com/svllvsxprod/photonicat-companion/releases/download/v0.7.7-beta.1/Photonicat-0.7.7-Windows-x64-Setup.exe) |
 
-[Все файлы выпуска](https://github.com/svllvsxprod/photonicat-companion/releases/tag/v0.7.6-beta.1), включая Windows без установки, исходники и контрольные суммы. Версия тестовая: APK подписан тестовым сертификатом, Windows EXE пока без цифровой подписи, Mac — с подписью разработки Apple без нотариализации. Система может предупредить об этом при запуске. iPhone пока не поддерживается.
+[Все файлы выпуска](https://github.com/svllvsxprod/photonicat-companion/releases/tag/v0.7.7-beta.1), включая Windows без установки, исходники и контрольные суммы. Версия тестовая: APK подписан тестовым сертификатом, Windows EXE пока без цифровой подписи, Mac — с подписью разработки Apple без нотариализации. Система может предупредить об этом при запуске. iPhone пока не поддерживается.
 
-**Новое в 0.7.6:** служба роутера повторяет подключение, если Bluetooth-адаптер появляется с задержкой при запуске. На Mac и Windows сохранено автоматическое восстановление связи при переходе между Wi-Fi и кабелем; ключ повторно вводить не нужно.
+**Новое в 0.7.7 для Mac и Windows.** В мастере настройки можно ускорить VPN на Photonicat 2 с проводным WAN. Оптимизация доступна для новой и уже установленной службы.
 
 ## Установка приложения
 
@@ -56,6 +56,8 @@ Photonicat Companion помогает управлять **Photonicat 2** без
 Нажми **«Установить и подключиться»**. Мастер установит службу управления и VPN-ядра, получит ключ и проверит связь. Во время установки не выключай питание и не меняй сетевые настройки. Если появилась ошибка совместимости, не обходи её вручную.
 
 Если служба уже установлена, выбери **«Привязать приложение»**: используется существующий ключ, а настройки сохраняются. У новой установки обычный интернет **Direct** включён по умолчанию; VPN выбирается позже.
+
+**Оптимизация VPN.** На шаге «Твои VPN-профили» раскрой **«Производительность VPN» → «Применить оптимизацию»**. Мастер распределит нагрузку между ядрами. Если старому Mihomo требуется смена режима, настройка вступит в силу при следующем запуске роутера. Профили и ключи сохраняются. Для отмены в том же разделе есть кнопка «Вернуть прежние настройки». Скорость проверена через проводной WAN. Работа через 5G отдельно не измерялась.
 
 <p align="center"><img src="docs/public/screenshots/02-hardware.png" width="420" alt="Шаг 2: оборудование и установка службы"></p>
 

@@ -25,6 +25,13 @@ void main() {
     await tester.tap(find.text('Установить и подключиться'));
     await tester.pumpAndSettle();
     expect(find.text('Твои VPN-профили'), findsOneWidget);
+    await tester.tap(find.text('Производительность VPN'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Применить оптимизацию'));
+    await tester.pumpAndSettle();
+    expect(find.text('Предпросмотр настройки производительности.'), findsOneWidget);
+    await tester.tap(find.text('Производительность VPN'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Выбрать файлы .conf'));
     await tester.pumpAndSettle();
     expect(find.text('Германия.conf'), findsOneWidget);
