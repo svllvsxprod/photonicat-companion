@@ -81,4 +81,3 @@ class PerformanceTests(unittest.TestCase):
 
     def test_preserve_custom_mtu(self):
         self.assertNotIn('mtu', profile.target_values({'stack': 'mips', 'mtu': 1420}))
-
